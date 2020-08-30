@@ -1,0 +1,13 @@
+name = "AbstractGUI"
+uuid = "796b4d30-d51d-4664-90d1-7cd8560850fa"
+authors = ["Cédric Belmant"]
+version = "0.1.0"
+
+[compat]
+julia = "1.5"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]
