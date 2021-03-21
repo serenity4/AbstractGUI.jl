@@ -1,9 +1,8 @@
 module AbstractGUI
 
-using Parameters, StaticArrays, Colors
+include("widgets.jl")
 
-include("keys.jl")
-
-export KeyBinding, KeyContext, KeyModifierState, key, @key_str
+export
+    Widget
 
 end
