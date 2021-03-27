@@ -1,16 +1,33 @@
 """
-Renderable object which, when consumed, returns a value of type `T`.
+Widgets are renderable elements which capture window events.
+They are immutable, and should be re-created in a real-time loop.
 
-A widget is a consumable and immutable data structure rendered to the screen.
-Upon trigger of certain registered events, the widget finishes and yields a unique value of type `T`.
+A widget subtype should always extend the following methods:
+- `vertex_data`
+- `event_area`
+- `zindex`
+
+To allow the specification of callbacks, it may extend `callbacks`.
+"""
+abstract type Widget end
+
+rerender(w::Widget) = any(ismutable, (getproperty(w, prop) for prop in fieldnames(typeof(w))))
+rerender(w::Widget, old::Widget) = rerender(w) || w ≠ old
+
+not_implemented_for(x) = error("Not implemented for $x")
 
 """
-abstract type Widget{T} end
+Vertex data produced by the widget for rendering.
+"""
+vertex_data(w::Widget) = not_implemented_for(w)
 
-eventtype(::Type{Widget{T}}) where {T} = T
-eventtype(a::Widget) = eventtype(typeof(a))
+"""
+Area inside which events can be captured.
+"""
+event_area(w::Widget) = not_implemented_for(w)
 
-function compose(a::W{T1}, b::W{T2}) where {W <: Widget,T1,T2}
-    res = compose_event(a, b)
-    W{Union{T1,T2}}(res)
-end
+"""
+Z-index of the widget. Used to determine whether a widget should be rendered and capture events.
+"""
+zindex(w::Widget) = not_implemented_for(w)
+
