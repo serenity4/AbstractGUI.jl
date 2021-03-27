@@ -11,9 +11,6 @@ To allow the specification of callbacks, it may extend `callbacks`.
 """
 abstract type Widget end
 
-rerender(w::Widget) = any(ismutable, (getproperty(w, prop) for prop in fieldnames(typeof(w))))
-rerender(w::Widget, old::Widget) = rerender(w) || w ≠ old
-
 not_implemented_for(x) = error("Not implemented for $x")
 
 """
