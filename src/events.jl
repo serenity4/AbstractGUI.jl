@@ -46,14 +46,15 @@ Return whether the widget `w` captures a specified event type.
 """
 captures_event(w::Widget, T) = captures_event(w, callback_symbol(T))
 captures_event(w::Widget, type::Symbol) = !isnothing(getproperty(callbacks(w), type))
+captures_event(w::Widget, ed::EventDetails) = captures_event(w, action(typeof(ed))) && Point(ed.location) in w
 
 """
 Find the target widget concerned by an event among a list of candidate widgets.
 The target widget is the one with the higher z-index among all widgets capturing
-the event and whose event area intersects with the event location.
+the event.
 """
 function find_target(ws::AbstractVector{<:Widget}, ed::EventDetails)
-    ws = filter(x -> captures_event(x, action(typeof(ed))) && Point(ed.location) in event_area(x), ws)
+    ws = filter(Base.Fix2(captures_event, ed), ws)
     if isempty(ws)
         return nothing
     end

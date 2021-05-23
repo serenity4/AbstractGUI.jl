@@ -4,7 +4,7 @@ They are immutable, and should be re-created in a real-time loop.
 
 A widget subtype should always extend the following methods:
 - `vertex_data`
-- `event_area`
+- `Base.in`
 - `zindex`
 
 To allow the specification of callbacks, it may extend `callbacks`.
@@ -19,12 +19,11 @@ Vertex data produced by the widget for rendering.
 vertex_data(w::Widget) = not_implemented_for(w)
 
 """
-Area inside which events can be captured.
+Test whether the point `p` is inside the widget `w`.
 """
-event_area(w::Widget) = not_implemented_for(w)
+Base.in(p::Point, w::Widget) = not_implemented_for(w)
 
 """
 Z-index of the widget. Used to determine whether a widget should be rendered and capture events.
 """
 zindex(w::Widget) = not_implemented_for(w)
-

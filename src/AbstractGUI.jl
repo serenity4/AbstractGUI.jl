@@ -11,7 +11,6 @@ include("events.jl")
 export
     # widgets
     Widget,
-    event_area,
     vertex_data,
     zindex,
 
