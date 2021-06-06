@@ -1,7 +1,7 @@
 module AbstractGUI
 
 using WindowAbstractions
-using Meshes
+using GeometryExperiments
 
 import WindowAbstractions: execute_callback
 

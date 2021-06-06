@@ -7,6 +7,8 @@ A widget subtype should always extend the following methods:
 - `Base.in`
 - `zindex`
 
+If `Base.in` is not extended, then either of `GeometryExperiments.boundingelement` and `GeometryExperiments.PointSet` must be extended.
+
 To allow the specification of callbacks, it may extend `callbacks`.
 """
 abstract type Widget end
@@ -21,7 +23,11 @@ vertex_data(w::Widget) = not_implemented_for(w)
 """
 Test whether the point `p` is inside the widget `w`.
 """
-Base.in(p::Point, w::Widget) = not_implemented_for(w)
+Base.in(p::Point, w::Widget) = p in boundingbox(w)
+
+GeometryExperiments.boundingelement(w::Widget) = boundingelement(PointSet(w))
+
+GeometryExperiments.PointSet(w::Widget) = PointSet(boundingelement(w))
 
 """
 Z-index of the widget. Used to determine whether a widget should be rendered and capture events.
