@@ -23,7 +23,7 @@ vertex_data(w::Widget) = not_implemented_for(w)
 """
 Test whether the point `p` is inside the widget `w`.
 """
-Base.in(p::Point, w::Widget) = p in boundingbox(w)
+Base.in(p::Point, w::Widget) = p in boundingelement(w)
 
 GeometryExperiments.boundingelement(w::Widget) = boundingelement(PointSet(w))
 
