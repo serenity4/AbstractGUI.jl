@@ -58,10 +58,6 @@ function find_target(ws::AbstractVector{<:Widget}, ed::EventDetails)
     if isempty(ws)
         return nothing
     end
-    _, i = findmax(zindex.(ws))
-    if !isnothing(i)
-        ws[i]
-    else
-        nothing
-    end
+    i = argmax(zindex.(ws))
+    ws[i]
 end
