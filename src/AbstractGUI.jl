@@ -6,6 +6,8 @@ using GeometryExperiments
 import WindowAbstractions: execute_callback
 
 include("widgets.jl")
+include("callbacks.jl")
+include("manager.jl")
 include("events.jl")
 
 export
@@ -18,6 +20,10 @@ export
     WidgetCallbacks,
     callbacks,
     captures_event,
-    find_target
+    find_target,
+
+    # GUI manager
+    GUIManager,
+    widgets
 
 end
