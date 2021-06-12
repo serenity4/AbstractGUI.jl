@@ -5,9 +5,12 @@ version = "0.1.0"
 
 [deps]
 GeometryExperiments = "1147bd75-18e1-436d-adda-d58e854f897d"
+MLStyle = "d8e11817-5142-5d16-987a-aa16d5891078"
 WindowAbstractions = "e18202ca-4a7d-4de8-b056-fa6bbd7de157"
+XCB = "16167f82-ea26-5cba-b1de-ed6fd5e30a10"
 
 [compat]
+MLStyle = "0.4"
 WindowAbstractions = "0.2, 0.3"
 julia = "1.5"
 
