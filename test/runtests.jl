@@ -23,10 +23,10 @@ rect2 = WRectangle(convert(Quadrangle, Box(P2(50,50),P2(70,70))),2,cb_2)
 
 ws = [rect1, rect2]
 
-struct FakeWindowHandler <: AbstractWindowHandler end
+struct FakeWindowManager <: AbstractWindowManager end
 struct FakeWindow <: AbstractWindow end
 
-wh = FakeWindowHandler()
+wm = FakeWindowManager()
 win = FakeWindow()
 
 cb = WindowCallbacks(on_key_pressed = propagate_event(ws), on_key_released = propagate_event(ws))
