@@ -1,7 +1,7 @@
 """
 `WidgetCallbacks` attached to a widget. By default, no callbacks are attached.
 """
-callbacks(gm::GUIManager, w::Widget) = get(gm.callbacks, w, WindowCallbacks())
+callbacks(gm::GUIManager, w::Widget) = get(gm.callbacks, w, WidgetCallbacks())
 
 """
 Return whether the widget `w` captures a specified event type.
