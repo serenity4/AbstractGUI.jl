@@ -37,7 +37,7 @@ function _execute_callback(gm::GUIManager, ed::EventDetails{T}) where {T}
     cbs = callbacks(gm, w)
     if act == PointerMoves()
         execute_callback(cbs.on_pointer_move, (w, ed))
-    elseif act == ButtonPressed()
+    elseif act == ButtonPressed() && ed.data.button ∉ [ButtonScrollUp(), ButtonScrollDown()]
         @debug "Button pressed ($(ed.data.button))"
         execute_callback(cbs.on_mouse_button_pressed, (w, ed))
         if !isempty(wm.history)
