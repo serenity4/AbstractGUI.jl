@@ -31,5 +31,6 @@ GeometryExperiments.PointSet(w::Widget) = PointSet(boundingelement(w))
 
 """
 Z-index of the widget. Used to determine whether a widget should be rendered and capture events.
+Defaults to zero.
 """
-zindex(w::Widget) = not_implemented_for(w)
+zindex(w::Widget) = 0.
