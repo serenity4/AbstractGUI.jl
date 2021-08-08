@@ -1,10 +1,10 @@
-mutable struct GUIManager{WM<:AbstractWindowManager}
+struct GUIManager{WM<:AbstractWindowManager}
     wm::WM
-    widgets::Dict{Symbol,Widget}
-    callbacks::Dict{Widget,WidgetCallbacks}
+    widgets::Dictionary{Symbol,Widget}
+    callbacks::Dictionary{Widget,WidgetCallbacks}
 end
 
-GUIManager(wm::AbstractWindowManager, widgets=Dict{Symbol,Widget}(), callbacks=Dict{Widget,WidgetCallbacks}()) = GUIManager{typeof(wm)}(wm, widgets, callbacks)
+GUIManager(wm::AbstractWindowManager, widgets=Dictionary(), callbacks=Dictionary()) = GUIManager{typeof(wm)}(wm, widgets, callbacks)
 
 widgets(gm::GUIManager) = values(gm.widgets)
 

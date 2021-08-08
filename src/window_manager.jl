@@ -1,11 +1,11 @@
-mutable struct WindowManager{WM,W} <: AbstractWindowManager
+struct WindowManager{WM,W} <: AbstractWindowManager
     impl::WM
-    active_keys::Dict{Symbol,EventDetails{KeyEvent{KeyPressed},W,Float64}}
-    active_buttons::Dict{MouseButton,EventDetails{<:MouseEvent{ButtonPressed},W,Float64}}
-    history::Dict{WindowAbstractions.Event,EventDetails}
+    active_keys::Dictionary{Symbol,EventDetails{KeyEvent{KeyPressed},W,Float64}}
+    active_buttons::Dictionary{MouseButton,EventDetails{<:MouseEvent{ButtonPressed},W,Float64}}
+    history::Dictionary{WindowAbstractions.Event,EventDetails}
 end
 
-WindowManager(wm::XWindowManager) = WindowManager{XWindowManager,XCBWindow}(wm, Dict(), Dict(), Dict())
+WindowManager(wm::XWindowManager) = WindowManager{XWindowManager,XCBWindow}(wm, Dictionary(), Dictionary(), Dictionary())
 
 @forward WindowManager.impl terminate_window!, get_window, get_window_symbol, callbacks, poll_for_event, wait_for_event, set_callbacks!
 

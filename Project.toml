@@ -4,6 +4,7 @@ authors = ["Cédric Belmant"]
 version = "0.1.0"
 
 [deps]
+Dictionaries = "85a47980-9c8c-11e8-2b9f-f7ca1fa99fb4"
 GeometryExperiments = "1147bd75-18e1-436d-adda-d58e854f897d"
 MLStyle = "d8e11817-5142-5d16-987a-aa16d5891078"
 WindowAbstractions = "e18202ca-4a7d-4de8-b056-fa6bbd7de157"

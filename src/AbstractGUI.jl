@@ -4,6 +4,7 @@ using WindowAbstractions
 using XCB
 using GeometryExperiments
 using MLStyle
+using Dictionaries
 
 import WindowAbstractions: execute_callback, run, terminate_window!, get_window, get_window_symbol, callbacks, poll_for_event, wait_for_event
 import XCB: set_callbacks!
@@ -18,7 +19,6 @@ include("events.jl")
 export
     # widgets
     Widget,
-    vertex_data,
     zindex,
 
     # events
