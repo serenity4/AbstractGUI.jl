@@ -1,12 +1,11 @@
 struct GUIManager{WM<:AbstractWindowManager}
     wm::WM
-    widgets::Dictionary{Symbol,Widget}
     callbacks::Dictionary{Widget,WidgetCallbacks}
 end
 
-GUIManager(wm::AbstractWindowManager, widgets=Dictionary(), callbacks=Dictionary()) = GUIManager{typeof(wm)}(wm, widgets, callbacks)
+GUIManager(wm::AbstractWindowManager, callbacks=Dictionary{Widget,WidgetCallbacks}()) = GUIManager{typeof(wm)}(wm, widgets, callbacks)
 
-widgets(gm::GUIManager) = values(gm.widgets)
+widgets(gm::GUIManager) = keys(gm.callbacks)
 
 WindowAbstractions.run(gm::GUIManager, mode::ExecutionMode; kwargs...) = run(gm.wm, mode, (ed) -> execute_callback(gm, ed); kwargs...)
 
