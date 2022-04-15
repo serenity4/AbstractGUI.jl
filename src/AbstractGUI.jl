@@ -7,7 +7,7 @@ using MLStyle
 using Dictionaries
 
 import WindowAbstractions: execute_callback, run, terminate_window!, get_window, get_window_symbol, callbacks, poll_for_event, wait_for_event
-import XCB: set_callbacks!
+import XCB: set_callbacks!, XCBWindow
 
 include("utils.jl")
 include("widgets.jl")
@@ -22,7 +22,7 @@ export
     zindex,
 
     # events
-    WidgetCallbacks,
+    AreaActions,
     callbacks,
     captures_event,
     find_target,

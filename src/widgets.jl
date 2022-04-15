@@ -3,7 +3,7 @@ Widgets are renderable elements which capture window events.
 They are immutable, and should be re-created in a real-time loop.
 
 A widget subtype should always extend the following methods:
-- `GeometryExperiments.MeshVertexEncoding`
+- `GeometryExperiments.VertexMesh`
 - `Base.in`
 - `zindex`
 
@@ -15,7 +15,7 @@ abstract type Widget end
 
 not_implemented_for(x) = error("Not implemented for $(typeof(x))")
 
-GeometryExperiments.MeshVertexEncoding(w::Widget) = not_implemented_for(w)
+GeometryExperiments.VertexMesh(w::Widget) = not_implemented_for(w)
 
 """
 Test whether the point `p` is inside the widget `w`.

@@ -1,10 +1,10 @@
-struct WRectangle <: Widget
-    geometry::Quadrangle
+struct RectangleWidget <: Widget
+    geometry::Box{2,Int}
     z::Int
-    cb::WidgetCallbacks
+    callbacks::AreaActions
 end
 
-AbstractGUI.zindex(w::WRectangle) = w.z
-AbstractGUI.vertex_data(w::WRectangle) = w.geometry
-Base.in(p::Point, w::WRectangle) = p in w.geometry
-AbstractGUI.callbacks(w::WRectangle) = w.cb
+AbstractGUI.zindex(w::RectangleWidget) = w.z
+AbstractGUI.vertex_data(w::RectangleWidget) = PointSet(w.geometry)
+Base.in(p::Point, w::RectangleWidget) = p in w.geometry
+AbstractGUI.callbacks(w::RectangleWidget) = w.callbacks

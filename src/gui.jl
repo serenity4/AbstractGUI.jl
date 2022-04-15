@@ -1,9 +1,9 @@
 struct GUIManager{WM<:AbstractWindowManager}
     wm::WM
-    callbacks::Dictionary{Widget,WidgetCallbacks}
+    callbacks::Dictionary{Widget,AreaActions}
 end
 
-GUIManager(wm::AbstractWindowManager, callbacks=Dictionary{Widget,WidgetCallbacks}()) = GUIManager{typeof(wm)}(wm, widgets, callbacks)
+GUIManager(wm::AbstractWindowManager, callbacks=Dictionary{Widget,AreaActions}()) = GUIManager{typeof(wm)}(wm, widgets, callbacks)
 
 widgets(gm::GUIManager) = keys(gm.callbacks)
 

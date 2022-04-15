@@ -1,7 +1,7 @@
 """
-`WidgetCallbacks` attached to a widget. By default, no callbacks are attached.
+`AreaActions` attached to a widget. By default, no callbacks are attached.
 """
-callbacks(gm::GUIManager, w::Widget) = get(gm.callbacks, w, WidgetCallbacks())
+callbacks(gm::GUIManager, w::Widget) = get(gm.callbacks, w, AreaActions())
 
 """
 Return whether the widget `w` captures a specified event type.
@@ -10,7 +10,7 @@ captures_event(gm::GUIManager, w::Widget, T) = captures_event(gm, w, callback_sy
 
 function captures_event(gm::GUIManager, w::Widget, type::Symbol)
     cbs = callbacks(gm, w)
-    hasproperty(cbs, type) && isnothing(getproperty(cbs, type)) || !isnothing(cbs.on_drag) && type in (:on_pointer_move, :on_mouse_button_pressed)
+    hasproperty(cbs, type) && !isnothing(getproperty(cbs, type)) || !isnothing(cbs.on_drag) && type in (:on_pointer_move, :on_mouse_button_pressed)
 end
 
 captures_event(gm::GUIManager, w::Widget, ed::EventDetails) = captures_event(gm, w, action(typeof(ed))) && Point(ed.location) in w

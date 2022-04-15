@@ -14,8 +14,9 @@ function WindowManager(wm::XWindowManager)
     )
 end
 
-@forward WindowManager.impl terminate_window!, get_window, get_window_symbol, callbacks, poll_for_event, wait_for_event, set_callbacks!
+@forward WindowManager.impl (terminate_window!, get_window, get_window_symbol, callbacks, poll_for_event, wait_for_event, set_callbacks!, Base.close, XCBWindow)
 
+terminate_window!(wm::WindowManager, win::AbstractWindow) = terminate_window!(wm.impl, win)
 run(wm::WindowManager, mode::ExecutionMode, execute_callback; kwargs...) = run(wm.impl, mode, execute_callback; kwargs...)
 
 function execute_callback(wm::WindowManager, ed::EventDetails)

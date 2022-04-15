@@ -1,6 +1,6 @@
 using AbstractGUI
 using Test
-using Meshes
+using GeometryExperiments
 using WindowAbstractions
 
 include("geometry.jl")
@@ -15,11 +15,11 @@ function propagate_event(ws)
     end
 end
 
-cb_1 = WidgetCallbacks(on_key_pressed = x -> :rect1)
-cb_2 = WidgetCallbacks(on_key_released = x -> :rect2)
+cb_1 = AreaActions(on_key_pressed = x -> :rect1)
+cb_2 = AreaActions(on_key_released = x -> :rect2)
 
-rect1 = WRectangle(convert(Quadrangle, Box(P2(0,0),P2(256,256))),1,cb_1)
-rect2 = WRectangle(convert(Quadrangle, Box(P2(50,50),P2(70,70))),2,cb_2)
+rect1 = RectangleWidget(Box(P2(0,0),P2(256,256)), 1, cb_1)
+rect2 = RectangleWidget(Box(P2(50,50),P2(70,70)), 2, cb_2)
 
 ws = [rect1, rect2]
 
