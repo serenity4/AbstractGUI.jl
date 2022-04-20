@@ -12,6 +12,7 @@ struct UIOverlay{W<:AbstractWindow}
 end
 
 UIOverlay(win::W, areas=[]) where {W<:AbstractWindow} = UIOverlay(dictionary([win => Set(areas)]), InteractionState{W}())
+UIOverlay{W}() where {W} = UIOverlay{W}(Dictionary(), InteractionState{W}())
 
 overlay(ui::UIOverlay{W}, win::W, areas::AbstractVector) where {W} = overlay(ui, win, Set(areas))
 overlay(ui::UIOverlay{W}, win::W, areas::Set) where {W} = set!(ui.areas, win, areas)
