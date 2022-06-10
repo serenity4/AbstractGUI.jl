@@ -73,7 +73,7 @@ the event, taking the first one found if multiple widgets have the same z-index.
 """
 function find_target(ui::UIOverlay, ed::EventDetails)
   areas = InputArea[]
-  for area in ui.areas[ed.win]
+  for area in get(Set{InputArea}, ui.areas, ed.win)
     captures_event(area, ed) && push!(areas, area)
   end
   isempty(areas) && return nothing
