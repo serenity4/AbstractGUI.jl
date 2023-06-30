@@ -10,7 +10,7 @@ include("overlay.jl")
 
 export
   UIOverlay,
-  overlay,
+  overlay!, unoverlay!,
   react_to_event,
   InputAreaCallbacks,
   InputArea,

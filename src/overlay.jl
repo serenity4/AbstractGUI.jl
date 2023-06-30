@@ -19,8 +19,10 @@ end
 UIOverlay{W}(areas = Dictionary{W,Set{InputArea}}(); double_click_period = 0.4, drag_from_distance = 1/100) where {W<:AbstractWindow} = UIOverlay{W}(areas, double_click_period, drag_from_distance, nothing, nothing)
 UIOverlay(win::W, areas = []; double_click_period = 0.4, drag_from_distance = 1/100) where {W<:AbstractWindow} = UIOverlay{W}(dictionary([win => Set(areas)]); double_click_period, drag_from_distance)
 
-overlay(ui::UIOverlay{W}, win::W, areas::AbstractVector) where {W} = overlay(ui, win, Set(areas))
-overlay(ui::UIOverlay{W}, win::W, areas::Set) where {W} = set!(ui.areas, win, areas)
+overlay!(ui::UIOverlay{W}, win::W, areas::AbstractVector) where {W} = overlay!(ui, win, Set(areas))
+overlay!(ui::UIOverlay{W}, win::W, areas::Set) where {W} = set!(ui.areas, win, areas)
+overlay!(ui::UIOverlay{W}, win::W, area::InputArea) where {W} = push!(get!(Set{InputArea}, ui.areas, win), area)
+unoverlay!(ui::UIOverlay{W}, win::W, area::InputArea) where {W} = delete!(get!(Set{InputArea}, ui.areas, win), area)
 
 is_left_click(event::Event) = event.mouse_event.button == BUTTON_LEFT
 
