@@ -13,11 +13,11 @@ end
 @enum InputKind EVENT ACTION
 
 mutable struct InputArea
-  const aabb::Transformed{HyperCube{Float64}, ComposedTransform{Translation{2, Float64}, Scaling{2, Float64}}}
-  const z::Float64
-  const contains::Any #= Callable =#
-  const events::EventType
-  const actions::ActionType
+  aabb::Transformed{HyperCube{Float64}, ComposedTransform{Translation{2, Float64}, Scaling{2, Float64}}}
+  z::Float64
+  contains::Any #= Callable =#
+  events::EventType
+  actions::ActionType
 end
 
 mutable struct Input
@@ -25,7 +25,9 @@ mutable struct Input
   type::Union{ActionType, EventType}
   area::InputArea
   data::Any
+  source::Union{Nothing, Input}
 end
+Input(kind, type, area, data) = Input(kind, type, area, data, nothing)
 
 function Base.getproperty(input::Input, name::Symbol)
   name === :event && return input.data::Event

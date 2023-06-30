@@ -32,7 +32,7 @@ function react_to_event(ui::UIOverlay, event::Event)
   if !isnothing(ui.dragged)
     (; dragged) = ui
     if event.type == POINTER_MOVED
-      return Input(ACTION, DRAG, dragged.area, (target, event))
+      return Input(ACTION, DRAG, dragged.area, (target, event), dragged)
     elseif event.type == BUTTON_RELEASED && is_left_click(event) !isnothing(target)
       ui.dragged = nothing
       DROP in dragged.area.actions && return Input(ACTION, DROP, target, (dragged, event))
@@ -43,9 +43,9 @@ function react_to_event(ui::UIOverlay, event::Event)
       if DRAG in dragged.area.actions
         ui.last_clicked = nothing
         ui.dragged = dragged
-        return Input(ACTION, DRAG, dragged.area, (target, event))
+        return Input(ACTION, DRAG, dragged.area, (target, event), dragged)
       end
-    elseif event.type == BUTTON_PRESSED && is_left_click(event) && target === ui.last_clicked.area && src.event.time - event.time < ui.double_click_period
+    elseif event.type == BUTTON_PRESSED && is_left_click(event) && target === ui.last_clicked.area && ui.last_clicked.event.time - event.time < ui.double_click_period
       clicked = ui.last_clicked
       if DOUBLE_CLICK in clicked.area.actions
         ui.last_clicked = nothing
