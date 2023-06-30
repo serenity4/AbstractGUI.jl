@@ -29,7 +29,10 @@ end
 
 function Base.getproperty(input::Input, name::Symbol)
   name === :event && return input.data::Event
-  name === :action && return input.data::Tuple{Union{Nothing, Input}, Event}
+  name === :action && return input.data::Tuple{Union{Nothing, Input, InputArea}, Event}
+  name === :dragged && return input.data::Tuple{Union{Nothing, InputArea}, Event}
+  name === :dropped && return input.data::Tuple{Input, Event}
+  name === :double_clicked && return input.data::Tuple{Input, Event}
   getfield(input, name)
 end
 

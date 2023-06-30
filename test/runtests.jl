@@ -31,36 +31,41 @@ ui = UIOverlay(win, areas)
     @test captures_event(rect3, POINTER_MOVED)
     @test !captures_event(rect3, KEY_PRESSED)
 
-    event = Event(KEY_PRESSED, KeyEvent(:Z02, KeySymbol(:z), 'z', NO_MODIFIERS), (0.0313,0.0313), time(), win)
+    event = Event(KEY_PRESSED, KeyEvent(:Z02, KeySymbol(:z), 'z', NO_MODIFIERS), (0.0313, 0.0313), time(), win)
     @test find_target(ui, event) == rect1
     input = react_to_event(ui, event)
     @test input.type == KEY_PRESSED
 
-    event = Event(KEY_RELEASED, KeyEvent(:Z02, KeySymbol(:z), 'z', NO_MODIFIERS), (0.0313,0.0313), time(), win)
+    event = Event(KEY_RELEASED, KeyEvent(:Z02, KeySymbol(:z), 'z', NO_MODIFIERS), (0.0313, 0.0313), time(), win)
     @test find_target(ui, event) == rect2
     input = react_to_event(ui, event)
     @test input.type == KEY_RELEASED
 
-    event = Event(KEY_PRESSED, KeyEvent(:Z02, KeySymbol(:z), 'z', NO_MODIFIERS), (0.0625,0.0625), time(), win)
+    event = Event(KEY_PRESSED, KeyEvent(:Z02, KeySymbol(:z), 'z', NO_MODIFIERS), (0.0625, 0.0625), time(), win)
     @test find_target(ui, event) == rect1
     input = react_to_event(ui, event)
     @test input.type == KEY_PRESSED
 
     @test isnothing(ui.last_clicked)
-    event = Event(BUTTON_PRESSED, MouseEvent(BUTTON_LEFT, BUTTON_NONE), (0.6,0.6), time(), win)
-    react_to_event(ui, event)
+    event = Event(BUTTON_PRESSED, MouseEvent(BUTTON_LEFT, BUTTON_NONE), (0.6, 0.6), time(), win)
+    click = react_to_event(ui, event)
     @test !isnothing(ui.last_clicked)
-    event = Event(POINTER_MOVED, PointerState(BUTTON_LEFT, NO_MODIFIERS), (0.61,0.61), time(), win)
+    event = Event(POINTER_MOVED, PointerState(BUTTON_LEFT, NO_MODIFIERS), (0.61, 0.61), time(), win)
     input = react_to_event(ui, event)
-    @test input.type === DRAG
+    @test !isnothing(ui.dragged)
     @test input.area === rect3
-    @test input.action[2] === event
-    event = Event(BUTTON_RELEASED, MouseEvent(BUTTON_LEFT, BUTTON_LEFT), (0.61,0.61), time(), win)
+    @test input.dragged === (rect3, event)
+    event = Event(POINTER_MOVED, PointerState(BUTTON_LEFT, NO_MODIFIERS), (1.0, 1.0), time(), win)
+    input = react_to_event(ui, event)
+    @test input.dragged === (nothing, event)
+    @test input.type === DRAG
+    event = Event(BUTTON_RELEASED, MouseEvent(BUTTON_LEFT, BUTTON_LEFT), (0.61, 0.61), time(), win)
     @test isnothing(react_to_event(ui, event))
-    event = Event(POINTER_MOVED, PointerState(BUTTON_NONE, NO_MODIFIERS), (0.62,0.62), time(), win)
+    @test isnothing(ui.dragged)
+    event = Event(POINTER_MOVED, PointerState(BUTTON_NONE, NO_MODIFIERS), (0.62, 0.62), time(), win)
     @test isnothing(react_to_event(ui, event))
 
-    event = Event(KEY_RELEASED, KeyEvent(:Z02, KeySymbol(:z), 'z', NO_MODIFIERS), (0.0625,0.0625), time(), win)
+    event = Event(KEY_RELEASED, KeyEvent(:Z02, KeySymbol(:z), 'z', NO_MODIFIERS), (0.0625, 0.0625), time(), win)
     @test isnothing(find_target(ui, event))
     @test isnothing(react_to_event(ui, event))
 end;
