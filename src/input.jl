@@ -49,8 +49,7 @@ InputArea(x; aabb = boundingelement(x), z = zindex(x), contains = Base.Fix1(cont
 captures_event(area::InputArea, action::ActionType) = action in area.actions
 
 function captures_event(area::InputArea, event::EventType)
-  DRAG in area.actions && event in POINTER_MOVED | BUTTON_PRESSED && return true
-  DROP in area.actions && event in POINTER_MOVED | BUTTON_EVENT && return true
+  any(in(area.actions), (DRAG, DROP)) && event in POINTER_MOVED | BUTTON_EVENT && return true
   HOVER in area.actions && event == POINTER_MOVED && return true
   DOUBLE_CLICK in area.actions && event == BUTTON_PRESSED && return true
   event in area.events

@@ -22,37 +22,44 @@ UIOverlay(win::W, areas = []; double_click_period = 0.4, drag_from_distance = 1/
 overlay(ui::UIOverlay{W}, win::W, areas::AbstractVector) where {W} = overlay(ui, win, Set(areas))
 overlay(ui::UIOverlay{W}, win::W, areas::Set) where {W} = set!(ui.areas, win, areas)
 
+is_left_click(event::Event) = event.mouse_event.button == BUTTON_LEFT
+
 function react_to_event(ui::UIOverlay, event::Event)
   target = find_target(ui, event)
 
   if !isnothing(ui.dragged)
     (; dragged) = ui
     if event.type == POINTER_MOVED
-      return Input(ACTION, DRAG, dragged, (target, event))
-    elseif event.type == BUTTON_RELEASED && !isnothing(target)
+      return Input(ACTION, DRAG, target, (dragged, event))
+    elseif event.type == BUTTON_RELEASED && is_left_click(event) !isnothing(target)
       ui.dragged = nothing
-      return Input(ACTION, DROP, target, (dragged, event))
+      DROP in dragged.area.actions && return Input(ACTION, DROP, target, (dragged, event))
     end
   elseif !isnothing(ui.last_clicked) && event.type in POINTER_MOVED | BUTTON_PRESSED
-    if event.type == POINTER_MOVED && distance(src.event, event) ≥ ui.drag_from_distance
+    if event.type == POINTER_MOVED && distance(ui.last_clicked.event, event) ≥ ui.drag_from_distance
       dragged = ui.last_clicked
-      ui.last_clicked = nothing
-      ui.dragged = dragged
-      return Input(ACTION, DRAG, dragged, (target, event))
-    elseif event.type == BUTTON_PRESSED && target === ui.last_clicked.area && src.event.time - event.time < ui.double_click_period
+      if DRAG in dragged.area.actions
+        ui.last_clicked = nothing
+        ui.dragged = dragged
+        return Input(ACTION, DRAG, target, (dragged, event))
+      end
+    elseif event.type == BUTTON_PRESSED && is_left_click(event) && target === ui.last_clicked.area && src.event.time - event.time < ui.double_click_period
       clicked = ui.last_clicked
-      ui.last_clicked = nothing
-      return Input(ACTION, DOUBLE_CLICK, target, (clicked, event))
+      if DOUBLE_CLICK in clicked.area.actions
+        ui.last_clicked = nothing
+        return Input(ACTION, DOUBLE_CLICK, target, (clicked, event))
+      end
     end
   end
 
   if isnothing(target)
-    event.type == BUTTON_PRESSED && (ui.last_clicked = nothing)
+    event.type == BUTTON_PRESSED && is_left_click(event) && (ui.last_clicked = nothing)
     return nothing
   end
 
   input = Input(EVENT, event.type, target, event)
-  event.type == BUTTON_PRESSED && (ui.last_clicked = input)
+  event.type == BUTTON_PRESSED && is_left_click(event) && (ui.last_clicked = input)
+  event.type in target.events || return nothing
   input
 end
 

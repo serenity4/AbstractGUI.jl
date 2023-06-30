@@ -8,14 +8,16 @@ const P2 = Point{2,Int}
 
 geom1 = Translated(Box(1.0, Scaling(0.067, 0.067)), Translation(0.067, 0.067))
 geom2 = Translated(Box(1.0, Scaling(0.0104, 0.0104)), Translation(0.0365, 0.0365))
+geom3 = Translated(Box(2.0, Scaling(0.3, 0.3)), Translation(0.365, 0.365))
 
 rect1 = InputArea(geom1, 1.0, in(geom1), KEY_PRESSED, NO_ACTION)
 rect2 = InputArea(geom2, 2.0, in(geom2), KEY_RELEASED, NO_ACTION)
+rect3 = InputArea(geom3, 2.0, in(geom3), NO_EVENT, DRAG)
 
 struct FakeWindow <: AbstractWindow end
 
 win = FakeWindow()
-areas = [rect1, rect2]
+areas = [rect1, rect2, rect3]
 ui = UIOverlay(win, areas)
 
 @testset "AbstractGUI.jl" begin
@@ -23,6 +25,11 @@ ui = UIOverlay(win, areas)
     @test !captures_event(rect1, KEY_RELEASED)
     @test captures_event(rect2, KEY_RELEASED)
     @test !captures_event(rect2, KEY_PRESSED)
+    @test captures_event(rect3, BUTTON_PRESSED)
+    @test captures_event(rect3, BUTTON_RELEASED)
+    @test captures_event(rect3, BUTTON_EVENT)
+    @test captures_event(rect3, POINTER_MOVED)
+    @test !captures_event(rect3, KEY_PRESSED)
 
     event = Event(KEY_PRESSED, KeyEvent(:Z02, KeySymbol(:z), 'z', NO_MODIFIERS), (0.0313,0.0313), time(), win)
     @test find_target(ui, event) == rect1
@@ -38,6 +45,20 @@ ui = UIOverlay(win, areas)
     @test find_target(ui, event) == rect1
     input = react_to_event(ui, event)
     @test input.type == KEY_PRESSED
+
+    @test isnothing(ui.last_clicked)
+    event = Event(BUTTON_PRESSED, MouseEvent(BUTTON_LEFT, BUTTON_NONE), (0.6,0.6), time(), win)
+    react_to_event(ui, event)
+    @test !isnothing(ui.last_clicked)
+    event = Event(POINTER_MOVED, PointerState(BUTTON_LEFT, NO_MODIFIERS), (0.61,0.61), time(), win)
+    input = react_to_event(ui, event)
+    @test input.type === DRAG
+    @test input.area === rect3
+    @test input.action[2] === event
+    event = Event(BUTTON_RELEASED, MouseEvent(BUTTON_LEFT, BUTTON_LEFT), (0.61,0.61), time(), win)
+    @test isnothing(react_to_event(ui, event))
+    event = Event(POINTER_MOVED, PointerState(BUTTON_NONE, NO_MODIFIERS), (0.62,0.62), time(), win)
+    @test isnothing(react_to_event(ui, event))
 
     event = Event(KEY_RELEASED, KeyEvent(:Z02, KeySymbol(:z), 'z', NO_MODIFIERS), (0.0625,0.0625), time(), win)
     @test isnothing(find_target(ui, event))
