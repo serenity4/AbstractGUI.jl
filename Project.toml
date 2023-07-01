@@ -10,8 +10,9 @@ GeometryExperiments = "1147bd75-18e1-436d-adda-d58e854f897d"
 WindowAbstractions = "e18202ca-4a7d-4de8-b056-fa6bbd7de157"
 
 [compat]
-julia = "1.8"
+Dictionaries = "0.3"
 WindowAbstractions = "0.7"
+julia = "1.8"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
