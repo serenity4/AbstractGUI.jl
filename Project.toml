@@ -11,6 +11,7 @@ WindowAbstractions = "e18202ca-4a7d-4de8-b056-fa6bbd7de157"
 
 [compat]
 BitMasks = "0.1"
+Dictionaries = "0.3"
 WindowAbstractions = "0.7"
 julia = "1.8"
 
