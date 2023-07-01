@@ -12,15 +12,15 @@ end
 
 @enum InputKind EVENT ACTION
 
-mutable struct InputArea
-  aabb::Transformed{HyperCube{Float64}, ComposedTransform{Translation{2, Float64}, Scaling{2, Float64}}}
+mutable struct InputArea{AABB}
+  aabb::AABB
   z::Float64
   contains::Any #= Callable =#
-  events::EventType
-  actions::ActionType
+  const events::EventType
+  const actions::ActionType
 end
 
-mutable struct Input
+struct Input
   kind::InputKind
   type::Union{ActionType, EventType}
   area::InputArea
