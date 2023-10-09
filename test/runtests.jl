@@ -6,9 +6,11 @@ using WindowAbstractions
 
 const P2 = Point{2,Int}
 
-geom1 = Translated(Box(1.0, Scaling(0.067, 0.067)), Translation(0.067, 0.067))
-geom2 = Translated(Box(1.0, Scaling(0.0104, 0.0104)), Translation(0.0365, 0.0365))
-geom3 = Translated(Box(2.0, Scaling(0.3, 0.3)), Translation(0.365, 0.365))
+p1, p2, p3, p4 = Point2[(0.134, 0.134), (0.0208, 0.0208), (0.0365, 0.0365), (0.3, 0.3)]
+
+geom1 = Box(zero(p1), p1)
+geom2 = Box(-p2 + p3, p2 + p3)
+geom3 = Box(-p4 + 10p3, p4 + 10p3)
 
 rect1 = InputArea(geom1, 1.0, in(geom1), KEY_PRESSED, NO_ACTION)
 rect2 = InputArea(geom2, 2.0, in(geom2), KEY_RELEASED, NO_ACTION)
