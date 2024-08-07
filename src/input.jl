@@ -8,11 +8,14 @@
   HOVER = 4
   "A double click occured on an area."
   DOUBLE_CLICK = 8
+
+  ALL_ACTIONS = DRAG | DROP | HOVER | DOUBLE_CLICK
 end
 
 @enum InputKind EVENT ACTION
 
 mutable struct InputArea{AABB}
+  on_input::Any #= Union{Nothing, Callable} =#
   aabb::AABB
   z::Float64
   contains::Any #= Callable =#
@@ -26,8 +29,22 @@ struct Input
   area::InputArea
   data::Any
   source::Union{Nothing, Input}
+  remaining_targets::Vector{InputArea}
 end
-Input(kind, type, area, data) = Input(kind, type, area, data, nothing)
+Input(kind, type, area, data, remaining_targets) = Input(kind, type, area, data, nothing, remaining_targets)
+
+function consume!(input::Input)
+  input.area.on_input === nothing && return
+  input.area.on_input(input)
+end
+
+function propagate!(input::Input)
+  isempty(input.remaining_targets) && return false
+  target = popfirst!(input.remaining_targets)
+  new_input = set_target(input, target)
+  consume!(new_input)
+  true
+end
 
 function Base.getproperty(input::Input, name::Symbol)
   name === :event && return input.data::Event
@@ -36,6 +53,12 @@ function Base.getproperty(input::Input, name::Symbol)
   name === :dropped && return input.data::Tuple{Input, Event}
   name === :double_clicked && return input.data::Tuple{Input, Event}
   getfield(input, name)
+end
+
+function set_target(input::Input, target::InputArea)
+  (; type, data) = input
+  input.type === DRAG && return @set input.data[1] = target
+  @set input.area = target
 end
 
 Base.contains(area::InputArea, p::Point{2}) = area.contains(p)::Bool
@@ -49,7 +72,7 @@ function zindex end
 
 zindex(x) = error("Not implemented for ::$(typeof(x))")
 
-InputArea(x; aabb = boundingelement(x), z = zindex(x), contains = Base.Fix1(contains, x)) = InputArea(aabb, z, contains, callbacks)
+InputArea(on_input, x; aabb = boundingelement(x), z = zindex(x), contains = Base.Fix1(contains, x)) = InputArea(on_input, aabb, z, contains, callbacks)
 
 captures_event(area::InputArea, action::ActionType) = action in area.actions
 
