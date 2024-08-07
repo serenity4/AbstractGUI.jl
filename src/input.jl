@@ -38,9 +38,21 @@ function consume!(input::Input)
   input.area.on_input(input)
 end
 
-function propagate!(input::Input)
+function propagate!(input::Input, to = nothing)
   isempty(input.remaining_targets) && return false
-  target = popfirst!(input.remaining_targets)
+  if !isnothing(to)
+    for i in eachindex(input.remaining_targets)
+      target = input.remaining_targets[i]
+      if isa(to, InputArea) && target === to || in(target, to)
+        deleteat!(input.remaining_targets, i)
+        @goto found
+      end
+    end
+    return false
+    @label found
+  else
+    target = popfirst!(input.remaining_targets)
+  end
   new_input = set_target(input, target)
   consume!(new_input)
   true

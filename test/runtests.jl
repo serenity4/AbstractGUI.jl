@@ -19,6 +19,7 @@ rect3 = InputArea(nothing, geom3, 2.0, in(geom3), NO_EVENT, DRAG)
 processed = Ref(0)
 rect4 = InputArea((input -> processed[] += 1), geom2, 1.0, in(geom2), POINTER_MOVED, NO_ACTION)
 rect5 = InputArea((input -> (processed[] = 0; propagate!(input); processed[] += 1)), geom2, 3.0, in(geom2), POINTER_MOVED, NO_ACTION)
+rect6 = InputArea((input -> (processed[] = 0; propagate!(input, InputArea[]); processed[] += 1)), geom2, 3.0, in(geom2), POINTER_MOVED, NO_ACTION)
 
 struct FakeWindow <: AbstractWindow end
 
@@ -85,4 +86,11 @@ win = FakeWindow()
     @test input.remaining_targets == [rect4]
     consume!(input)
     @test processed[] === 2
+
+    ui = UIOverlay(win, [rect3, rect4, rect6])
+    input = input_from_event(ui, event)
+    @test input.area === rect6
+    @test input.remaining_targets == [rect4]
+    consume!(input)
+    @test processed[] === 1
 end;
