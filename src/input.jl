@@ -14,9 +14,9 @@ end
 
 @enum InputKind EVENT ACTION
 
-mutable struct InputArea{AABB}
+mutable struct InputArea
   on_input::Any #= Union{Nothing, Callable} =#
-  aabb::AABB
+  aabb::Box{2,Float64}
   z::Float64
   contains::Any #= Callable =#
   const events::EventType
