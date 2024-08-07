@@ -14,10 +14,6 @@ export
   overlay!, unoverlay!,
   input_from_event,
   InputAreaCallbacks,
-  InputArea,
-  zindex,
-  boundingelement,
-  Point,
-  Box, box
+  InputArea
 
 end
