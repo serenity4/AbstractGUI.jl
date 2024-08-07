@@ -13,7 +13,7 @@ WindowAbstractions = "e18202ca-4a7d-4de8-b056-fa6bbd7de157"
 [compat]
 Accessors = "0.1.37"
 BitMasks = "0.1"
-Dictionaries = "0.3"
+Dictionaries = "0.3, 0.4"
 GeometryExperiments = "0.4"
 WindowAbstractions = "0.7"
 julia = "1.8"
