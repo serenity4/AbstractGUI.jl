@@ -37,7 +37,7 @@ function input_from_event(ui::UIOverlay, event::Event)
     elseif event.type == BUTTON_RELEASED && is_left_click(event)
       # Stop dragging.
       ui.dragged = nothing
-      DROP in dragged.area.actions && return Input(ACTION, DROP, target, (dragged, event), remaining_targets)
+      !isnothing(target) && DROP in dragged.area.actions && return Input(ACTION, DROP, target, (dragged, event), remaining_targets)
     end
   elseif !isnothing(ui.last_clicked) && event.type in POINTER_MOVED | BUTTON_PRESSED
     if event.type == POINTER_MOVED && in(BUTTON_LEFT, event.pointer_state.state) && distance(ui.last_clicked.event, event) ≥ ui.drag_from_distance
