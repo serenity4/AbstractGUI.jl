@@ -9,6 +9,8 @@ using Accessors: @set
 include("input.jl")
 include("overlay.jl")
 
+public next_target, propagate!, consume!
+
 export
   UIOverlay,
   overlay!, unoverlay!,

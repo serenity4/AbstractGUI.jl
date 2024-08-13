@@ -40,21 +40,19 @@ function consume!(input::Input)
   input.area.on_input(input)
 end
 
-function propagate!(input::Input, to = nothing)
-  isempty(input.remaining_targets) && return false
-  if !isnothing(to)
-    for i in eachindex(input.remaining_targets)
-      target = input.remaining_targets[i]
-      if isa(to, InputArea) && target === to || in(target, to)
-        deleteat!(input.remaining_targets, i)
-        @goto found
-      end
-    end
-    return false
-    @label found
-  else
-    target = popfirst!(input.remaining_targets)
+function next_target(input::Input, to = nothing)
+  isempty(input.remaining_targets) && return nothing
+  isnothing(to) && return last(input.remaining_targets)
+  for target in input.remaining_targets
+    (isa(to, InputArea) && target === to || in(target, to)) && return target
   end
+end
+
+function propagate!(input::Input, to = nothing)
+  target = next_target(input, to)
+  isnothing(target) && return false
+  i = findfirst(x -> x === target, input.remaining_targets)::Int
+  deleteat!(input.remaining_targets, i)
   new_input = set_target(input, target)
   consume!(new_input)
   true
