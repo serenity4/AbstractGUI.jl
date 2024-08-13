@@ -54,22 +54,22 @@ win = FakeWindow()
     input = input_from_event(ui, event)
     @test input.type == KEY_PRESSED
 
-    @test isnothing(ui.last_clicked)
+    @test isnothing(ui.click)
     event = Event(BUTTON_PRESSED, MouseEvent(BUTTON_LEFT, BUTTON_NONE), (0.6, 0.6), time(), win)
     click = input_from_event(ui, event)
-    @test !isnothing(ui.last_clicked)
+    @test !isnothing(ui.click)
     event = Event(POINTER_MOVED, PointerState(BUTTON_LEFT, NO_MODIFIERS), (0.61, 0.61), time(), win)
     input = input_from_event(ui, event)
-    @test !isnothing(ui.dragged)
+    @test !isnothing(ui.drag)
     @test input.area === rect3
-    @test input.dragged === (rect3, event)
+    @test input.drag === (rect3, event)
     event = Event(POINTER_MOVED, PointerState(BUTTON_LEFT, NO_MODIFIERS), (1.0, 1.0), time(), win)
     input = input_from_event(ui, event)
-    @test input.dragged === (nothing, event)
+    @test input.drag === (nothing, event)
     @test input.type === DRAG
     event = Event(BUTTON_RELEASED, MouseEvent(BUTTON_LEFT, BUTTON_LEFT), (0.61, 0.61), time(), win)
     @test isnothing(input_from_event(ui, event))
-    @test isnothing(ui.dragged)
+    @test isnothing(ui.drag)
     event = Event(POINTER_MOVED, PointerState(BUTTON_NONE, NO_MODIFIERS), (0.62, 0.62), time(), win)
     @test isnothing(input_from_event(ui, event))
 

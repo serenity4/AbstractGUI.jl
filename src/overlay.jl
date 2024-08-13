@@ -11,13 +11,13 @@ mutable struct UIOverlay{W<:AbstractWindow}
   "Maximum time elapsed between two clicks to consider them as a double click action."
   const double_click_period::Float64
   "Minimum distance required to initiate a drag action."
-  const drag_from_distance::Float64
-  last_clicked::Union{Nothing, Input} # to detect double click events
-  dragged::Union{Nothing,Input} # to continue drag events and detect drop events
+  const drag_threshold::Float64
+  click::Union{Nothing, Input} # to detect double click events
+  drag::Union{Nothing, Input} # to continue drag events and detect drop events
 end
 
-UIOverlay{W}(areas = Dictionary{W,Set{InputArea}}(); double_click_period = 0.4, drag_from_distance = 1/100) where {W<:AbstractWindow} = UIOverlay{W}(areas, double_click_period, drag_from_distance, nothing, nothing)
-UIOverlay(win::W, areas = []; double_click_period = 0.4, drag_from_distance = 1/100) where {W<:AbstractWindow} = UIOverlay{W}(dictionary([win => Set(areas)]); double_click_period, drag_from_distance)
+UIOverlay{W}(areas = Dictionary{W,Set{InputArea}}(); double_click_period = 0.4, drag_threshold = 1/100) where {W<:AbstractWindow} = UIOverlay{W}(areas, double_click_period, drag_threshold, nothing, nothing)
+UIOverlay(win::W, areas = []; double_click_period = 0.4, drag_threshold = 1/100) where {W<:AbstractWindow} = UIOverlay{W}(dictionary([win => Set(areas)]); double_click_period, drag_threshold)
 
 overlay!(ui::UIOverlay{W}, win::W, areas::AbstractVector) where {W} = overlay!(ui, win, Set(areas))
 overlay!(ui::UIOverlay{W}, win::W, areas::Set) where {W} = set!(ui.areas, win, areas)
@@ -29,42 +29,40 @@ is_left_click(event::Event) = event.mouse_event.button == BUTTON_LEFT
 function input_from_event(ui::UIOverlay, event::Event)
   remaining_targets = find_targets(ui, event)
   target = isempty(remaining_targets) ? nothing : popfirst!(remaining_targets)
-  if !isnothing(ui.dragged)
-    (; dragged) = ui
+  (; click, drag) = ui
+
+  if !isnothing(drag)
     if event.type == POINTER_MOVED
       # Continue dragging.
-      return Input(ACTION, DRAG, dragged.area, (target, event), dragged, remaining_targets)
+      return Input(ACTION, DRAG, drag.area, (target, event), drag, remaining_targets)
     elseif event.type == BUTTON_RELEASED && is_left_click(event)
       # Stop dragging.
-      ui.dragged = nothing
-      !isnothing(target) && DROP in dragged.area.actions && return Input(ACTION, DROP, target, (dragged, event), remaining_targets)
+      ui.drag = nothing
+      # Emit a drop action if relevant.
+      !isnothing(target) && in(DROP, drag.area.actions) && return Input(ACTION, DROP, target, (drag, event), remaining_targets)
     end
-  elseif !isnothing(ui.last_clicked) && event.type in POINTER_MOVED | BUTTON_PRESSED
-    if event.type == POINTER_MOVED && in(BUTTON_LEFT, event.pointer_state.state) && distance(ui.last_clicked.event, event) ≥ ui.drag_from_distance
-      dragged = ui.last_clicked
-      if DRAG in dragged.area.actions
+  end
+
+  if !isnothing(click)
+    if in(event.type, POINTER_MOVED) && in(BUTTON_LEFT, event.pointer_state.state)
+      if in(DRAG, click.area.actions) && distance(click.event, event) ≥ ui.drag_threshold
         # Start dragging.
-        ui.last_clicked = nothing
-        ui.dragged = dragged
-        return Input(ACTION, DRAG, dragged.area, (target, event), dragged, remaining_targets)
+        ui.click = nothing
+        drag = click
+        ui.drag = drag
+        return Input(ACTION, DRAG, drag.area, (target, event), drag, remaining_targets)
       end
-    elseif event.type == BUTTON_PRESSED && is_left_click(event) && target === ui.last_clicked.area && ui.last_clicked.event.time - event.time < ui.double_click_period
-      clicked = ui.last_clicked
-      if DOUBLE_CLICK in clicked.area.actions
-        ui.last_clicked = nothing
-        return Input(ACTION, DOUBLE_CLICK, target, (clicked, event), remaining_targets)
-      end
+    end
+    if in(event.type, BUTTON_PRESSED) && is_left_click(event) && in(DOUBLE_CLICK, click.area.actions) && target === click.area && click.event.time - event.time < ui.double_click_period
+      ui.click = nothing
+      return Input(ACTION, DOUBLE_CLICK, target, (click, event), remaining_targets)
     end
   end
 
-  if isnothing(target)
-    event.type == BUTTON_PRESSED && is_left_click(event) && (ui.last_clicked = nothing)
-    return nothing
-  end
-
-  input = Input(EVENT, event.type, target, event, remaining_targets)
-  event.type == BUTTON_PRESSED && is_left_click(event) && (ui.last_clicked = input)
-  event.type in target.events || return nothing
+  input = isnothing(target) ? nothing : Input(EVENT, event.type, target, event, remaining_targets)
+  event.type == BUTTON_PRESSED && is_left_click(event) && (ui.click = input)
+  isnothing(input) && return nothing
+  in(event.type, target.events) || return nothing
   input
 end
 
