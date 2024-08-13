@@ -23,6 +23,8 @@ mutable struct InputArea
   const actions::ActionType
 end
 
+Base.show(io::IO, area::InputArea) = print(io, InputArea, '(', area.z, ", ", area.aabb, ", ", area.events, ", ", area.actions)
+
 struct Input
   kind::InputKind
   type::Union{ActionType, EventType}

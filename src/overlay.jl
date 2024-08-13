@@ -76,10 +76,13 @@ The target area is the one with the higher z-index among all widgets capturing
 the event, taking the first one found if multiple widgets have the same z-index.
 """
 function find_targets(ui::UIOverlay, event::Event)
-  areas = InputArea[]
-  for area in get(Set{InputArea}, ui.areas, event.win)
-    captures_event(area, event) && push!(areas, area)
+  targets = InputArea[]
+  areas = get(ui.areas, event.win, nothing)
+  isnothing(areas) && return targets
+  for area in areas
+    captures_event(area, event) && push!(targets, area)
   end
-  isempty(areas) && return areas
-  sort!(areas, by = x -> x.z, rev = true)
+  isempty(targets) && return targets
+  sort!(targets, by = x -> x.z, rev = true)
+  targets
 end
