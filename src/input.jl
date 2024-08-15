@@ -30,7 +30,7 @@ struct Input{W}
   type::Union{ActionType, EventType}
   area::InputArea
   data::Any
-  source::Optional{Input}
+  source::Optional{Input{W}}
   remaining_targets::Vector{InputArea}
   ui
 end
@@ -74,8 +74,7 @@ function propagate!(input::Input, to = nothing)
   target = next_target(input, to)
   isnothing(target) && return false
   i = findfirst(x -> x === target, input.remaining_targets)::Int
-  remaining_targets = input.remaining_targets[(i + 1):end]
-  consume!(input.ui, event(input), target, remaining_targets)
+  consume_next!(input.ui, event(input), target, input.remaining_targets[i:end])
   true
 end
 
