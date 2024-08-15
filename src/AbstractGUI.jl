@@ -6,16 +6,19 @@ using Dictionaries
 using BitMasks
 using Accessors: @set
 
+const Optional{T} = Union{Nothing, T}
+
 include("input.jl")
 include("overlay.jl")
 
-public next_target, propagate!, consume!
+public next_target
 
 export
   UIOverlay,
   overlay!, unoverlay!,
-  input_from_event,
-  InputAreaCallbacks,
+  consume!,
+  propagate!,
+  Input,
   InputArea
 
 end
