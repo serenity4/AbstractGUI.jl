@@ -64,7 +64,7 @@ function next_target(input::Input, to = nothing)
   isempty(input.remaining_targets) && return nothing
   # Don't propagate generated inputs.
   (input.type === POINTER_ENTERED || input.type === POINTER_EXITED || input.type === DOUBLE_CLICK) && return nothing
-  isnothing(to) && return last(input.remaining_targets)
+  isnothing(to) && return first(input.remaining_targets)
   for target in input.remaining_targets
     (isa(to, InputArea) && target === to || in(target, to)) && return target
   end
