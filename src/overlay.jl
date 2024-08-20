@@ -50,7 +50,7 @@ end
 function generate_pointer_exited_inputs_from_geometry!(ui::UIOverlay{W}, event::Event{W}, targets) where {W}
   to_delete = Int[]
   for (i, area) in enumerate(ui.over)
-    if !any(==(area), targets)
+    if !any(==(area), targets) && is_impacted_by(area, event.type)
       if in(POINTER_EXITED, area.events)
         input_pointer_exited = Input{W}(EVENT, POINTER_EXITED, area, (@set event.type = POINTER_EXITED), InputArea[], ui)
         consume!(input_pointer_exited)
