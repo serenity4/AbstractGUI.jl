@@ -74,7 +74,8 @@ function propagate!(input::Input, to = nothing)
   target = next_target(input, to)
   isnothing(target) && return false
   i = findfirst(x -> x === target, input.remaining_targets)::Int
-  consume_next!(input.ui, event(input), target, input.remaining_targets[i:end])
+  splice!(input.remaining_targets, 1:i)
+  consume_next!(input.ui, event(input), target, input.remaining_targets)
   true
 end
 
