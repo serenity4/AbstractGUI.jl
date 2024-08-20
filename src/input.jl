@@ -66,7 +66,7 @@ function next_target(input::Input, to = nothing)
   (input.type === POINTER_ENTERED || input.type === POINTER_EXITED || input.type === DOUBLE_CLICK) && return nothing
   isnothing(to) && return first(input.remaining_targets)
   for target in input.remaining_targets
-    (isa(to, InputArea) && target === to || in(target, to)) && return target
+    (isa(to, InputArea) ? target === to : in(target, to)) && return target
   end
 end
 
