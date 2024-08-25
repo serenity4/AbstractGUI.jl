@@ -43,7 +43,7 @@ function consume!(ui::UIOverlay{W}, event::Event{W}) where {W}
   event.type == BUTTON_RELEASED && is_left_click(event) && generate_drop_inputs!(ui, event, targets)
   consume_next!(ui, event, targets)
   event.type == BUTTON_RELEASED && is_left_click(event) && clear_click_and_drags!(ui, event)
-  generate_pointer_exited_inputs_from_unprocessed!(ui, event, targets)
+  event.type == POINTER_MOVED && generate_pointer_exited_inputs_from_unprocessed!(ui, event, targets)
   nothing
 end
 
