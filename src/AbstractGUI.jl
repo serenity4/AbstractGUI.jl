@@ -14,11 +14,8 @@ include("overlay.jl")
 @eval $(Expr(:public, :next_target))
 
 export
-  UIOverlay,
-  overlay!, unoverlay!,
-  consume!,
-  propagate!,
-  Input,
-  InputArea
+  UIOverlay, overlay!, unoverlay!,
+  InputCallback, InputArea, intercept!,
+  Input, consume!, propagate!
 
 end

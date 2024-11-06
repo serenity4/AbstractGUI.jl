@@ -14,27 +14,52 @@ end
 
 @enum InputKind EVENT ACTION
 
+struct InputCallback
+  f::Any #= Callable =#
+  events::EventType
+  actions::ActionType
+end
+
+InputCallback(f, events::EventType) = InputCallback(f, events, NO_ACTION)
+InputCallback(f, actions::ActionType) = InputCallback(f, NO_EVENT, actions)
+InputCallback(f, actions::ActionType, events::EventType) = InputCallback(f, events, actions)
+
 mutable struct InputArea
-  on_input::Any #= Union{Nothing, Callable} =#
+  on_input::Vector{InputCallback}
   aabb::Box{2,Float64}
   z::Float64
   contains::Any #= Callable =#
-  const events::EventType
-  const actions::ActionType
 end
 
-Base.show(io::IO, area::InputArea) = print(io, InputArea, "(z = ", area.z, ", ", area.aabb, ", ", bitmask_name(area.events), ", ", bitmask_name(area.actions), ')')
+InputArea(callback::InputCallback, aabb, z, contains) = InputArea([callback], aabb, z, contains)
+InputArea(aabb, z, contains) = InputArea(InputCallback[], aabb, z, contains)
 
-struct Input{W}
-  kind::InputKind
-  type::Union{ActionType, EventType}
-  area::InputArea
-  data::Any
-  source::Optional{Input{W}}
-  remaining_targets::Vector{InputArea}
-  ui
+intercept!(area::InputArea, callback::InputCallback) = push!(area.on_input, callback)
+intercept!(f, area::InputArea, arg, args...) = intercept!(area, InputCallback(f, arg, args...))
+
+actions(area::InputArea) = actions(area.on_input)
+actions(callbacks::Vector{InputCallback}) = foldl((flags, callback) -> flags | callback.actions, callbacks; init = NO_ACTION)
+
+events(area::InputArea) = events(area.on_input)
+events(callbacks::Vector{InputCallback}) = foldl((flags, callback) -> flags | callback.events, callbacks; init = NO_EVENT)
+
+Base.show(io::IO, area::InputArea) = print(io, InputArea, "(z = ", area.z, ", ", area.aabb, ", ", bitmask_name(events(area)), ", ", bitmask_name(actions(area)), ')')
+
+mutable struct Input{W}
+  const kind::InputKind
+  const type::Union{ActionType, EventType}
+  const area::InputArea
+  const data::Any
+  const source::Optional{Input{W}}
+  const remaining_targets::Vector{InputArea}
+  propagate::Bool
+  propagate_to::Optional{Vector{InputArea}}
+  propagation_callbacks::Vector{Any}
+  const ui
 end
-Input{W}(kind, type, area, data, remaining_targets, ui) where {W} = Input{W}(kind, type, area, data, nothing,remaining_targets, ui)
+
+Input{W}(kind, type, area, data, remaining_targets, ui) where {W} = Input{W}(kind, type, area, data, nothing, remaining_targets, ui)
+Input{W}(kind, type, area, data, source, remaining_targets, ui) where {W} = Input{W}(kind, type, area, data, source, remaining_targets, false, nothing, [], ui)
 
 function Base.getproperty(input::Input{W}, name::Symbol) where {W}
   name === :event && return input.data::Event{W}
@@ -56,8 +81,38 @@ function event(input::Input)
 end
 
 function consume!(input::Input)
-  input.area.on_input === nothing && return
-  input.area.on_input(input)
+  input.propagate = false
+  for callback in input.area.on_input
+    isa(input.type, EventType) && (in(input.type, callback.events) || continue)
+    isa(input.type, ActionType) && (in(input.type, callback.actions) || continue)
+    callback.f(input)
+  end
+  propagated = input.propagate && propagate_input!(input, input.propagate_to)
+  for callback in input.propagation_callbacks
+    callback(propagated)
+  end
+end
+
+propagate!(input::Input, to = nothing) = propagate!(nothing, input, to)
+function propagate!(f, input::Input, to = nothing)
+  input.propagate = true
+  !isnothing(f) && push!(input.propagation_callbacks, f)
+  isnothing(to) && return
+  if isnothing(input.propagate_to)
+    input.propagate_to = copy(to)
+  else
+    intersect!(input.propagate_to, to)
+  end
+  nothing
+end
+
+function propagate_input!(input::Input, to)
+  target = next_target(input, to)
+  isnothing(target) && return false
+  i = findfirst(x -> x === target, input.remaining_targets)::Int
+  splice!(input.remaining_targets, 1:i)
+  consume_next!(input.ui, event(input), target, input.remaining_targets)
+  true
 end
 
 function next_target(input::Input, to = nothing)
@@ -70,33 +125,16 @@ function next_target(input::Input, to = nothing)
   end
 end
 
-function propagate!(input::Input, to = nothing)
-  target = next_target(input, to)
-  isnothing(target) && return false
-  i = findfirst(x -> x === target, input.remaining_targets)::Int
-  splice!(input.remaining_targets, 1:i)
-  consume_next!(input.ui, event(input), target, input.remaining_targets)
-  true
-end
-
 Base.contains(area::InputArea, p::Point{2}) = area.contains(p)::Bool
 
-"""
-    zindex(x)
-
-Z-index of `x`, assigned by default to an `InputArea` constructed from any `x`. The input area with the higher z-index among other intersecting input areas will capture the event.
-"""
-function zindex end
-
-zindex(x) = error("Not implemented for ::$(typeof(x))")
-
-InputArea(on_input, x; aabb = boundingelement(x), z = zindex(x), contains = Base.Fix1(contains, x)) = InputArea(on_input, aabb, z, contains, callbacks)
-
 function is_impacted_by(area::InputArea, event::EventType)
-  any(in(area.actions), (DRAG, DROP)) && event in POINTER_MOVED | BUTTON_EVENT && return true
-  in(HOVER, area.actions) && event == POINTER_MOVED && return true
-  in(DOUBLE_CLICK, area.actions) && event == BUTTON_PRESSED && return true
-  event === POINTER_MOVED && (in(POINTER_ENTERED, area.events) || in(POINTER_EXITED, area.events) || in(HOVER, area.actions)) && return true
-  in(event, area.events)
+  action_flags = actions(area)
+  event_flags = events(area)
+  any(in(action_flags), (DRAG, DROP)) && event in POINTER_MOVED | BUTTON_EVENT && return true
+  in(HOVER, action_flags) && event == POINTER_MOVED && return true
+  in(DOUBLE_CLICK, action_flags) && event == BUTTON_PRESSED && return true
+  event === POINTER_MOVED && (in(POINTER_ENTERED, event_flags) || in(POINTER_EXITED, event_flags) || in(HOVER, action_flags)) && return true
+  in(event, event_flags)
 end
+
 is_impacted_by(area::InputArea, event::Event) = is_impacted_by(area, event.type) && contains(area, Point(event.location))

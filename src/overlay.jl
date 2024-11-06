@@ -51,7 +51,7 @@ function generate_pointer_exited_inputs_from_geometry!(ui::UIOverlay{W}, event::
   to_delete = Int[]
   for (i, area) in enumerate(ui.over)
     if !any(==(area), targets) && is_impacted_by(area, event.type)
-      if in(POINTER_EXITED, area.events)
+      if in(POINTER_EXITED, events(area))
         input_pointer_exited = Input{W}(EVENT, POINTER_EXITED, area, (@set event.type = POINTER_EXITED), InputArea[], ui)
         consume!(input_pointer_exited)
       end
@@ -68,7 +68,7 @@ function generate_pointer_exited_inputs_from_unprocessed!(ui::UIOverlay{W}, even
     i = findfirst(==(target), ui.over)
     isnothing(i) && continue
     push!(to_delete, i)
-    if in(POINTER_EXITED, target.events)
+    if in(POINTER_EXITED, events(target))
       input_pointer_exited = Input{W}(EVENT, POINTER_EXITED, target, (@set event.type = POINTER_EXITED), InputArea[], ui)
       consume!(input_pointer_exited)
     end
@@ -90,7 +90,7 @@ function generate_drag_inputs!(ui::UIOverlay{W}, event::Event{W}, targets) where
   distance(source, event) ≥ ui.drag_threshold || return
   to_delete = Int[]
   for (i, area) in enumerate(clicked)
-    in(DRAG, area.actions) || continue
+    in(DRAG, actions(area)) || continue
     # Start dragging.
     push!(to_delete, i)
     drag = Input{W}(EVENT, event.type, area, event, InputArea[], ui)
@@ -106,7 +106,7 @@ end
 function generate_drop_inputs!(ui::UIOverlay{W}, event::Event{W}, targets) where {W}
   for drag in ui.drags
     # Emit a drop action if relevant.
-    in(DROP, drag.area.actions) || continue
+    in(DROP, actions(drag.area)) || continue
     target = isempty(targets) ? nothing : targets[1]
     consume!(Input{W}(ACTION, DROP, target, (drag, event), InputArea[], ui))
   end
@@ -127,6 +127,8 @@ end
 
 function consume_next!(ui::UIOverlay{W}, event::Event{W}, target::Optional{InputArea}, remaining_targets::AbstractVector{InputArea}) where {W}
   (; drags, over) = ui
+  target_events = isnothing(target) ? nothing : events(target)
+  target_actions = isnothing(target) ? nothing : actions(target)
 
   local input::Optional{Input{W}} = nothing
   local input_double_click::Optional{Input{W}} = nothing
@@ -134,10 +136,10 @@ function consume_next!(ui::UIOverlay{W}, event::Event{W}, target::Optional{Input
 
   # Keep track of pointer enters.
   if event.type == POINTER_MOVED && !isnothing(target)
-    if !in(target, over) && (in(POINTER_ENTERED, target.events) || in(POINTER_EXITED, target.events))
+    if !in(target, over) && (in(POINTER_ENTERED, target_events) || in(POINTER_EXITED, target_events))
       # Generate a `POINTER_ENTERED` input, and record `target` in `over`.
       pushfirst!(over, target)
-      if in(POINTER_ENTERED, target.events)
+      if in(POINTER_ENTERED, target_events)
         input_pointer_entered = Input{W}(EVENT, POINTER_ENTERED, target, (@set event.type = POINTER_ENTERED), InputArea[], ui)
       end
     end
@@ -146,7 +148,7 @@ function consume_next!(ui::UIOverlay{W}, event::Event{W}, target::Optional{Input
   # Detect double clicks.
   if !isnothing(ui.click) && !isnothing(target)
     source, clicked = ui.click
-    if in(event.type, BUTTON_PRESSED) && is_left_click(event) && in(DOUBLE_CLICK, target.actions) && source.time - event.time < ui.double_click_period
+    if in(event.type, BUTTON_PRESSED) && is_left_click(event) && in(DOUBLE_CLICK, target_actions) && source.time - event.time < ui.double_click_period
       i = findfirst(==(target), clicked)
       if !isnothing(i)
         # Generate double-click action.
@@ -156,7 +158,7 @@ function consume_next!(ui::UIOverlay{W}, event::Event{W}, target::Optional{Input
     end
   end
 
-  if !isnothing(target) && in(event.type, target.events)
+  if !isnothing(target) && in(event.type, target_events)
     input = Input{W}(EVENT, event.type, target, event, remaining_targets, ui)
   end
 

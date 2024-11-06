@@ -1,5 +1,5 @@
 using AbstractGUI
-using AbstractGUI: is_impacted_by, find_targets, propagate!, consume!, Input
+using AbstractGUI: is_impacted_by, find_targets, consume!
 using Accessors: @set, setproperties
 using Test
 using GeometryExperiments
@@ -39,9 +39,15 @@ end
 
 @testset "AbstractGUI.jl" begin
   @testset "Detecting impacted areas" begin
-    a = InputArea(add_input, geom1, 1.0, in(geom1), KEY_PRESSED, NO_ACTION)
-    b = InputArea(add_input, geom2, 2.0, in(geom2), KEY_RELEASED, NO_ACTION)
-    c = InputArea(add_input, geom3, 1.0, in(geom1), NO_EVENT, DRAG)
+    a = InputArea(geom1, 1.0, in(geom1))
+    b = InputArea(geom2, 2.0, in(geom2))
+    c = InputArea(geom3, 1.0, in(geom1))
+    @test !is_impacted_by(a, KEY_PRESSED)
+    @test !is_impacted_by(b, KEY_RELEASED)
+    @test !is_impacted_by(c, BUTTON_PRESSED)
+    intercept!(nothing, a, KEY_PRESSED)
+    intercept!(nothing, b, KEY_RELEASED)
+    intercept!(nothing, c, DRAG)
     @test is_impacted_by(a, KEY_PRESSED)
     @test !is_impacted_by(a, KEY_RELEASED)
     @test is_impacted_by(b, KEY_RELEASED)
@@ -54,8 +60,10 @@ end
   end
 
   @testset "Generation of basic (stateless) inputs" begin
-    bottom = InputArea(add_input, geom1, 1.0, in(geom1), KEY_PRESSED, NO_ACTION)
-    top = InputArea(add_input, geom2, 2.0, in(geom2), KEY_RELEASED, NO_ACTION)
+    bottom = InputArea(geom1, 1.0, in(geom1))
+    top = InputArea(geom2, 2.0, in(geom2))
+    intercept!(add_input, bottom, KEY_PRESSED)
+    intercept!(add_input, top, KEY_RELEASED)
     p = (0.0313, 0.0313)
     ui = UIOverlay(win, [bottom, top])
     event = Event(KEY_PRESSED, KeyEvent(:Z02, KeySymbol(:z), 'z', NO_MODIFIERS), p, time(), win)
@@ -73,7 +81,8 @@ end
   end
 
   @testset "Generation of `DRAG` actions" begin
-    area = InputArea(add_input, geom3, 1.0, in(geom1), NO_EVENT, DRAG)
+    area = InputArea(geom3, 1.0, in(geom1))
+    intercept!(add_input, area, DRAG)
     p = Tuple(centroid(geom1))
     ui = UIOverlay(win, [area])
     event = Event(BUTTON_PRESSED, MouseEvent(BUTTON_LEFT, BUTTON_NONE), p, time(), win)
@@ -98,10 +107,14 @@ end
   end
 
   @testset "Propagation of inputs" begin
-    bottom = InputArea(add_input, geom3, 0.8, in(geom1), NO_EVENT, DRAG)
-    middle = InputArea(add_input, geom2, 1.0, in(geom2), POINTER_MOVED, NO_ACTION)
-    top_1 = InputArea(input -> add_input(input) && propagate!(input), geom2, 3.0, in(geom2), POINTER_MOVED, NO_ACTION)
-    top_2 = InputArea(input -> add_input(input) && propagate!(input, []), geom2, 3.0, in(geom2), POINTER_MOVED, NO_ACTION)
+    bottom = InputArea(geom3, 0.8, in(geom1))
+    middle = InputArea(geom2, 1.0, in(geom2))
+    top_1 = InputArea(geom2, 3.0, in(geom2))
+    top_2 = InputArea(geom2, 3.0, in(geom2))
+    intercept!(add_input, bottom, DRAG)
+    intercept!(add_input, middle, POINTER_MOVED)
+    intercept!(input -> (add_input(input) && propagate!((x -> @test x), input)), top_1, POINTER_MOVED)
+    intercept!(input -> (add_input(input) && propagate!((x -> @test !x), input, [])), top_2, POINTER_MOVED)
 
     # Propagate to the next target.
     ui = UIOverlay(win, [middle, top_1, bottom])
@@ -118,8 +131,10 @@ end
   end
 
   @testset "Generation of `POINTER_ENTERED`/`POINTER_EXITED` events" begin
-    bottom = InputArea(add_input, geom2, 2.0, in(geom2), POINTER_ENTERED | POINTER_EXITED, NO_ACTION)
-    top = InputArea(add_input, geom1, 1.0, in(geom1), POINTER_ENTERED | POINTER_EXITED, NO_ACTION)
+    bottom = InputArea(geom2, 2.0, in(geom2))
+    top = InputArea(geom1, 1.0, in(geom1))
+    intercept!(add_input, bottom, POINTER_ENTERED | POINTER_EXITED)
+    intercept!(add_input, top, POINTER_ENTERED | POINTER_EXITED)
     ui = UIOverlay(win, [top, bottom])
     event = Event(POINTER_MOVED, PointerState(BUTTON_NONE, NO_MODIFIERS), Tuple(centroid(geom1)), time(), win)
     input = generate_input!(ui, event)
@@ -137,7 +152,8 @@ end
   end
 
   @testset "Generation of `DOUBLE_CLICK` actions" begin
-    area = InputArea(add_input, geom1, 1.0, in(geom1), BUTTON_EVENT, DOUBLE_CLICK)
+    area = InputArea(geom1, 1.0, in(geom1))
+    intercept!(add_input, area, BUTTON_EVENT, DOUBLE_CLICK)
     ui = UIOverlay(win, [area])
     p = Tuple(centroid(geom1))
     event = Event(BUTTON_PRESSED, MouseEvent(BUTTON_LEFT, BUTTON_NONE), p, time(), win)
@@ -163,8 +179,10 @@ end
   end
 
   @testset "Generation of `DOUBLE_CLICK` actions on secondary targets" begin
-    bottom = InputArea(add_input, geom1, 1.0, in(geom1), BUTTON_EVENT, DOUBLE_CLICK)
-    top = InputArea(input -> add_input(input) && propagate!(input), geom1, 2.0, in(geom1), NO_EVENT, DOUBLE_CLICK)
+    bottom = InputArea(geom1, 1.0, in(geom1))
+    top = InputArea(geom1, 2.0, in(geom1))
+    intercept!(add_input, bottom, BUTTON_EVENT, DOUBLE_CLICK)
+    intercept!(input -> add_input(input) && propagate!(input), top, DOUBLE_CLICK)
     ui = UIOverlay(win, [bottom, top])
     p = Tuple(centroid(geom1))
     event = Event(BUTTON_PRESSED, MouseEvent(BUTTON_LEFT, BUTTON_NONE), p, time(), win)
