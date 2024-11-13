@@ -1,6 +1,6 @@
 name = "AbstractGUI"
 uuid = "796b4d30-d51d-4664-90d1-7cd8560850fa"
-version = "0.3.7"
+version = "0.3.8"
 authors = ["Cédric Belmant"]
 
 [deps]
