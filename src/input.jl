@@ -99,7 +99,7 @@ function propagate!(f, input::Input, to = nothing)
   !isnothing(f) && push!(input.propagation_callbacks, f)
   isnothing(to) && return
   if isnothing(input.propagate_to)
-    input.propagate_to = copy(to)
+    input.propagate_to = isa(to, InputArea) ? [to] : collect(InputArea, to)
   else
     intersect!(input.propagate_to, to)
   end

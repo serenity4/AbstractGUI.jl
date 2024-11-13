@@ -148,7 +148,7 @@ function consume_next!(ui::UIOverlay{W}, event::Event{W}, target::Optional{Input
   # Detect double clicks.
   if !isnothing(ui.click) && !isnothing(target)
     source, clicked = ui.click
-    if in(event.type, BUTTON_PRESSED) && is_left_click(event) && in(DOUBLE_CLICK, target_actions) && source.time - event.time < ui.double_click_period
+    if in(event.type, BUTTON_PRESSED) && is_left_click(event) && in(DOUBLE_CLICK, target_actions) && event.time - source.time < ui.double_click_period
       i = findfirst(==(target), clicked)
       if !isnothing(i)
         # Generate double-click action.
@@ -177,6 +177,9 @@ function consume_next!(ui::UIOverlay{W}, event::Event{W}, target::Optional{Input
       end
     end
   end
+
+  # If we receive a double click, don't notify of a `BUTTON_PRESSED` event.
+  !isnothing(input_double_click) && (input = nothing)
 
   !isnothing(input) && consume!(input)
   !isnothing(input_pointer_entered) && consume!(input_pointer_entered)

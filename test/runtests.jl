@@ -159,22 +159,29 @@ end
     event = Event(BUTTON_PRESSED, MouseEvent(BUTTON_LEFT, BUTTON_NONE), p, time(), win)
     input = generate_input!(ui, event)
     @test input.type === BUTTON_PRESSED
-    @test input.area === area
+    event = Event(BUTTON_RELEASED, MouseEvent(BUTTON_LEFT, BUTTON_LEFT), p, time(), win)
+    input = generate_input!(ui, event)
+    @test input.type === BUTTON_RELEASED
+    event = Event(BUTTON_PRESSED, MouseEvent(BUTTON_LEFT, BUTTON_NONE), p, event.time + 0.1, win)
+    input = generate_input!(ui, event)
+    @test input.type === DOUBLE_CLICK
     event = Event(BUTTON_RELEASED, MouseEvent(BUTTON_LEFT, BUTTON_LEFT), p, time(), win)
     input = generate_input!(ui, event)
     @test input.type === BUTTON_RELEASED
     @test input.area === area
-    event = Event(BUTTON_PRESSED, MouseEvent(BUTTON_LEFT, BUTTON_NONE), p, event.time + 0.3, win)
-    clicks = generate_inputs!(ui, event)
-    @test length(clicks) == 2
-    @test clicks[1].type === BUTTON_PRESSED
-    @test clicks[1].area === area
-    @test clicks[2].type === DOUBLE_CLICK
-    @test clicks[2].area === area
-    event = Event(BUTTON_RELEASED, MouseEvent(BUTTON_LEFT, BUTTON_LEFT), p, time(), win)
+    test_overlay_is_reset(ui)
+
+    area = InputArea(geom1, 1.0, in(geom1))
+    intercept!(add_input, area, BUTTON_PRESSED, DOUBLE_CLICK)
+    event = Event(BUTTON_PRESSED, MouseEvent(BUTTON_LEFT, BUTTON_NONE), p, time(), win)
     input = generate_input!(ui, event)
-    @test input.type === BUTTON_RELEASED
-    @test input.area === area
+    @test input.type === BUTTON_PRESSED
+    event = Event(BUTTON_PRESSED, MouseEvent(BUTTON_LEFT, BUTTON_NONE), p, event.time + 2ui.double_click_period, win)
+    input = generate_input!(ui, event)
+    @test input.type === BUTTON_PRESSED
+    event = Event(BUTTON_PRESSED, MouseEvent(BUTTON_LEFT, BUTTON_NONE), p, event.time + 0.1, win)
+    input = generate_input!(ui, event)
+    @test input.type === DOUBLE_CLICK
     test_overlay_is_reset(ui)
   end
 
@@ -193,15 +200,13 @@ end
     input = generate_input!(ui, event)
     @test input.type === BUTTON_RELEASED
     @test input.area === bottom
-    event = Event(BUTTON_PRESSED, MouseEvent(BUTTON_LEFT, BUTTON_NONE), p, event.time + 0.3, win)
+    event = Event(BUTTON_PRESSED, MouseEvent(BUTTON_LEFT, BUTTON_NONE), p, event.time + 0.1, win)
     clicks = generate_inputs!(ui, event)
-    @test length(clicks) == 3
+    @test length(clicks) == 2
     @test clicks[1].type === DOUBLE_CLICK
     @test clicks[1].area === top
-    @test clicks[2].type === BUTTON_PRESSED
+    @test clicks[2].type === DOUBLE_CLICK
     @test clicks[2].area === bottom
-    @test clicks[3].type === DOUBLE_CLICK
-    @test clicks[3].area === bottom
     event = Event(BUTTON_RELEASED, MouseEvent(BUTTON_LEFT, BUTTON_LEFT), p, time(), win)
     input = generate_input!(ui, event)
     @test input.type === BUTTON_RELEASED
