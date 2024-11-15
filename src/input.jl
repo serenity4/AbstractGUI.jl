@@ -62,22 +62,22 @@ Input{W}(kind, type, area, data, remaining_targets, ui) where {W} = Input{W}(kin
 Input{W}(kind, type, area, data, source, remaining_targets, ui) where {W} = Input{W}(kind, type, area, data, source, remaining_targets, false, nothing, [], ui)
 
 function Base.getproperty(input::Input{W}, name::Symbol) where {W}
-  name === :event && return input.data::Event{W}
+  name === :event && return event(input)::Event{W}
   name === :action && return input.data::Tuple{Union{Nothing, Input{W}, InputArea}, Event{W}}
   name === :drag && return input.data::Tuple{Optional{InputArea}, Event{W}}
   name === :drop && return input.data::Tuple{Input{W}, Event{W}}
-  name === :double_click && return input.data::Tuple{Input{W}, Event{W}}
+  name === :double_click && return input.data::Tuple{Event{W}, Event{W}}
   name === :ui && return getfield(input, :ui)::UIOverlay{W}
   getfield(input, name)
 end
 
 Base.show(io::IO, input::Input) = print(io, Input, '(', bitmask_name(input.type), ", ", input.area, ')')
 
-function event(input::Input)
+function event(input::Input{W}) where {W}
   input.type === DRAG && return input.drag[end]
   input.type === DROP && return input.drop[end]
   input.type === DOUBLE_CLICK && return input.double_click[end]
-  input.event
+  input.data::Event{W}
 end
 
 function consume!(input::Input)

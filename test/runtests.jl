@@ -182,6 +182,7 @@ end
     event = Event(BUTTON_PRESSED, MouseEvent(BUTTON_LEFT, BUTTON_NONE), p, event.time + 0.1, win)
     input = generate_input!(ui, event)
     @test input.type === DOUBLE_CLICK
+    @test isa(input.double_click, Tuple)
     test_overlay_is_reset(ui)
   end
 
