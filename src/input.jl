@@ -8,21 +8,36 @@
   HOVER = 4
   "A double click occured on an area."
   DOUBLE_CLICK = 8
+  "A triple click occured on an area."
+  TRIPLE_CLICK = 16
 
   ALL_ACTIONS = DRAG | DROP | HOVER | DOUBLE_CLICK
 end
 
 @enum InputKind EVENT ACTION
 
-struct InputCallback
-  f::Any #= Callable =#
-  events::EventType
-  actions::ActionType
+Base.@kwdef struct OverlayOptions
+  "Maximum time elapsed between two clicks to consider them as a double click action."
+  double_click_period::Float64 = 0.4
+  "Minimum distance required to initiate a drag action."
+  drag_threshold::Float64 = 0.01
 end
 
-InputCallback(f, events::EventType) = InputCallback(f, events, NO_ACTION)
-InputCallback(f, actions::ActionType) = InputCallback(f, NO_EVENT, actions)
-InputCallback(f, actions::ActionType, events::EventType) = InputCallback(f, events, actions)
+mutable struct InputCallback
+  const f::Any #= Callable =#
+  const events::EventType
+  const actions::ActionType
+  const options::OverlayOptions
+  last_click::Optional{Event} # to detect multiple-click events
+  click_count::Int64
+  function InputCallback(f, events::EventType, actions::ActionType; options::OverlayOptions = OverlayOptions())
+    new(f, events, actions, options, nothing, 0)
+  end
+end
+
+InputCallback(f, events::EventType; options = OverlayOptions()) = InputCallback(f, events, NO_ACTION; options)
+InputCallback(f, actions::ActionType; options = OverlayOptions()) = InputCallback(f, NO_EVENT, actions; options)
+InputCallback(f, actions::ActionType, events::EventType; options = OverlayOptions()) = InputCallback(f, events, actions; options)
 
 mutable struct InputArea
   on_input::Vector{InputCallback}
@@ -34,7 +49,11 @@ end
 InputArea(callback::InputCallback, aabb, z, contains) = InputArea([callback], aabb, z, contains)
 InputArea(aabb, z, contains) = InputArea(InputCallback[], aabb, z, contains)
 
-intercept!(area::InputArea, callback::InputCallback) = push!(area.on_input, callback)
+function intercept!(area::InputArea, callback::InputCallback)
+  push!(area.on_input, callback)
+  callback
+end
+
 intercept!(f, area::InputArea, arg, args...) = intercept!(area, InputCallback(f, arg, args...))
 
 actions(area::InputArea) = actions(area.on_input)
@@ -42,6 +61,13 @@ actions(callbacks::Vector{InputCallback}) = foldl((flags, callback) -> flags | c
 
 events(area::InputArea) = events(area.on_input)
 events(callbacks::Vector{InputCallback}) = foldl((flags, callback) -> flags | callback.events, callbacks; init = NO_EVENT)
+
+impacting_events(area::InputArea) = impacting_events(area.on_input)
+impacting_events(callbacks::Vector{InputCallback}) = foldl((flags, callback) -> flags | impacting_events(callback), callbacks; init = NO_EVENT)
+function impacting_events(callback::InputCallback)
+  in(DOUBLE_CLICK, callback.actions) || in(TRIPLE_CLICK, callback.actions) || return callback.events
+  callback.events | BUTTON_PRESSED
+end
 
 Base.show(io::IO, area::InputArea) = print(io, InputArea, "(z = ", area.z, ", ", area.aabb, ", ", bitmask_name(events(area)), ", ", bitmask_name(actions(area)), ')')
 
@@ -82,15 +108,50 @@ end
 
 function consume!(input::Input)
   input.propagate = false
+  called = false
   for callback in input.area.on_input
-    isa(input.type, EventType) && (in(input.type, callback.events) || continue)
-    isa(input.type, ActionType) && (in(input.type, callback.actions) || continue)
-    callback.f(input)
+    impacted_by_event = isa(input.type, EventType) && in(input.type, callback.events)
+    impacted_by_event |= input.type === BUTTON_PRESSED && any(in(callback.actions), (DOUBLE_CLICK, TRIPLE_CLICK))
+    impacted_by_event && (called |= call!(callback, input))
+    isa(input.type, ActionType) && in(input.type, callback.actions) && (called |= call!(callback, input))
   end
-  propagated = input.propagate && propagate_input!(input, input.propagate_to)
+  propagated = (input.propagate || !called) && propagate_input!(input, input.propagate_to)
   for callback in input.propagation_callbacks
     callback(propagated)
   end
+end
+
+function call!(callback::InputCallback, input::Input{W}) where {W}
+  if input.type === BUTTON_PRESSED && (in(DOUBLE_CLICK, callback.actions) || in(TRIPLE_CLICK, callback.actions))
+    (; event) = input
+    last_click = callback.last_click::Optional{Event{W}}
+    callback.last_click = event
+    if isnothing(last_click) || event.time > last_click.time + callback.options.double_click_period
+      callback.click_count = 1
+      !in(BUTTON_PRESSED, callback.events) && return false
+    else
+      callback.click_count += 1
+      if in(DOUBLE_CLICK, callback.actions) && callback.click_count == 2
+        !in(TRIPLE_CLICK, callback.actions) && reset_clicks!(callback)
+        input = Input{W}(ACTION, DOUBLE_CLICK, input.area, (last_click, input.event), nothing, InputArea[], input.ui)
+        consume!(input)
+        return false
+      elseif in(TRIPLE_CLICK, callback.actions) && callback.click_count == 3
+        reset_clicks!(callback)
+        input = Input{W}(ACTION, TRIPLE_CLICK, input.area, (last_click, input.event), nothing, InputArea[], input.ui)
+        consume!(input)
+        return false
+      end
+    end
+  end
+
+  callback.f(input)
+  true
+end
+
+function reset_clicks!(callback::InputCallback)
+  callback.last_click = nothing
+  callback.click_count = 0
 end
 
 propagate!(input::Input, to = nothing) = propagate!(nothing, input, to)

@@ -9,16 +9,14 @@ When using this overlay, the user is responsible of:
 mutable struct UIOverlay{W<:AbstractWindow}
   const areas::Dictionary{W, Set{InputArea}}
   "Maximum time elapsed between two clicks to consider them as a double click action."
-  const double_click_period::Float64
-  "Minimum distance required to initiate a drag action."
   const drag_threshold::Float64
   click::Optional{Pair{Event{W},Vector{InputArea}}} # to detect double click events
   over::Vector{InputArea} # area that a pointer is over
   drags::Vector{Input{W}} # to continue drag events and detect drop events
 end
 
-UIOverlay{W}(areas = Dictionary{W,Set{InputArea}}(); double_click_period = 0.4, drag_threshold = 1/100) where {W<:AbstractWindow} = UIOverlay{W}(areas, double_click_period, drag_threshold, nothing, InputArea[], Input{W}[])
-UIOverlay(win::W, areas = []; double_click_period = 0.4, drag_threshold = 1/100) where {W<:AbstractWindow} = UIOverlay{W}(dictionary([win => Set(areas)]); double_click_period, drag_threshold)
+UIOverlay{W}(areas = Dictionary{W,Set{InputArea}}(); drag_threshold = 1/100) where {W<:AbstractWindow} = UIOverlay{W}(areas, drag_threshold, nothing, InputArea[], Input{W}[])
+UIOverlay(win::W, areas = []; drag_threshold = 1/100) where {W<:AbstractWindow} = UIOverlay{W}(dictionary([win => Set(areas)]); drag_threshold)
 
 overlay!(ui::UIOverlay{W}, win::W, areas::AbstractVector) where {W} = overlay!(ui, win, Set(areas))
 overlay!(ui::UIOverlay{W}, win::W, areas::Set) where {W} = set!(ui.areas, win, areas)
@@ -42,7 +40,7 @@ function consume!(ui::UIOverlay{W}, event::Event{W}) where {W}
   !isnothing(ui.click) && in(event.type, POINTER_MOVED) && in(BUTTON_LEFT, event.pointer_state.state) && generate_drag_inputs!(ui, event, targets)
   event.type == BUTTON_RELEASED && is_left_click(event) && generate_drop_inputs!(ui, event, targets)
   consume_next!(ui, event, targets)
-  event.type == BUTTON_RELEASED && is_left_click(event) && clear_click_and_drags!(ui, event)
+  event.type == BUTTON_RELEASED && is_left_click(event) && clear_drags!(ui)
   event.type == POINTER_MOVED && generate_pointer_exited_inputs_from_unprocessed!(ui, event, targets)
   nothing
 end
@@ -112,26 +110,17 @@ function generate_drop_inputs!(ui::UIOverlay{W}, event::Event{W}, targets) where
   end
 end
 
-function clear_click_and_drags!(ui::UIOverlay{W}, event::Event{W}) where {W}
+function clear_drags!(ui::UIOverlay{W}) where {W}
   empty!(ui.drags)
-  if !isnothing(ui.click)
-    source, clicked = ui.click
-    if source.time - event.time > ui.double_click_period
-      # As drags were cleared, the only way `ui.click` can be useful is for detecting double clicks.
-      # As the period has passed (assuming events are sent in chronological order), it may now be reset.
-      ui.click = nothing
-    end
-  end
-  nothing
+  ui.click = nothing
 end
 
 function consume_next!(ui::UIOverlay{W}, event::Event{W}, target::Optional{InputArea}, remaining_targets::AbstractVector{InputArea}) where {W}
   (; drags, over) = ui
-  target_events = isnothing(target) ? nothing : events(target)
+  target_events = isnothing(target) ? nothing : impacting_events(target)
   target_actions = isnothing(target) ? nothing : actions(target)
 
   local input::Optional{Input{W}} = nothing
-  local input_double_click::Optional{Input{W}} = nothing
   local input_pointer_entered::Optional{Input{W}} = nothing
 
   # Keep track of pointer enters.
@@ -145,24 +134,11 @@ function consume_next!(ui::UIOverlay{W}, event::Event{W}, target::Optional{Input
     end
   end
 
-  # Detect double clicks.
-  if !isnothing(ui.click) && !isnothing(target)
-    source, clicked = ui.click
-    if in(event.type, BUTTON_PRESSED) && is_left_click(event) && in(DOUBLE_CLICK, target_actions) && event.time - source.time < ui.double_click_period
-      i = findfirst(==(target), clicked)
-      if !isnothing(i)
-        # Generate double-click action.
-        deleteat!(clicked, i)
-        input_double_click = Input{W}(ACTION, DOUBLE_CLICK, target, (source, event), remaining_targets, ui)
-      end
-    end
-  end
-
   if !isnothing(target) && in(event.type, target_events)
     input = Input{W}(EVENT, event.type, target, event, remaining_targets, ui)
   end
 
-  if event.type == BUTTON_PRESSED && is_left_click(event) && isnothing(input_double_click) && !isnothing(target)
+  if event.type == BUTTON_PRESSED && is_left_click(event) && !isnothing(target)
     # Add `target` to the clicked areas.
     if isnothing(ui.click)
       ui.click = event => [target]
@@ -178,12 +154,8 @@ function consume_next!(ui::UIOverlay{W}, event::Event{W}, target::Optional{Input
     end
   end
 
-  # If we receive a double click, don't notify of a `BUTTON_PRESSED` event.
-  !isnothing(input_double_click) && (input = nothing)
-
   !isnothing(input) && consume!(input)
   !isnothing(input_pointer_entered) && consume!(input_pointer_entered)
-  !isnothing(input_double_click) && consume!(input_double_click)
 
   !isnothing(input)
 end

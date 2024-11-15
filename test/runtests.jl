@@ -172,24 +172,33 @@ end
     test_overlay_is_reset(ui)
 
     area = InputArea(geom1, 1.0, in(geom1))
-    intercept!(add_input, area, BUTTON_PRESSED, DOUBLE_CLICK)
+    callback = intercept!(add_input, area, BUTTON_PRESSED, DOUBLE_CLICK)
     event = Event(BUTTON_PRESSED, MouseEvent(BUTTON_LEFT, BUTTON_NONE), p, time(), win)
     input = generate_input!(ui, event)
     @test input.type === BUTTON_PRESSED
-    event = Event(BUTTON_PRESSED, MouseEvent(BUTTON_LEFT, BUTTON_NONE), p, event.time + 2ui.double_click_period, win)
+    event = Event(BUTTON_RELEASED, MouseEvent(BUTTON_LEFT, BUTTON_LEFT), p, time(), win)
+    input = generate_input!(ui, event)
+    @test input.type === BUTTON_RELEASED
+    event = Event(BUTTON_PRESSED, MouseEvent(BUTTON_LEFT, BUTTON_NONE), p, event.time + 2callback.options.double_click_period, win)
     input = generate_input!(ui, event)
     @test input.type === BUTTON_PRESSED
+    event = Event(BUTTON_RELEASED, MouseEvent(BUTTON_LEFT, BUTTON_LEFT), p, time(), win)
+    input = generate_input!(ui, event)
+    @test input.type === BUTTON_RELEASED
     event = Event(BUTTON_PRESSED, MouseEvent(BUTTON_LEFT, BUTTON_NONE), p, event.time + 0.1, win)
     input = generate_input!(ui, event)
     @test input.type === DOUBLE_CLICK
     @test isa(input.double_click, Tuple)
+    event = Event(BUTTON_RELEASED, MouseEvent(BUTTON_LEFT, BUTTON_LEFT), p, time(), win)
+    input = generate_input!(ui, event)
+    @test input.type === BUTTON_RELEASED
     test_overlay_is_reset(ui)
   end
 
   @testset "Generation of `DOUBLE_CLICK` actions on secondary targets" begin
     bottom = InputArea(geom1, 1.0, in(geom1))
     top = InputArea(geom1, 2.0, in(geom1))
-    intercept!(add_input, bottom, BUTTON_EVENT, DOUBLE_CLICK)
+    intercept!(input -> add_input(input), bottom, BUTTON_EVENT, DOUBLE_CLICK)
     intercept!(input -> add_input(input) && propagate!(input), top, DOUBLE_CLICK)
     ui = UIOverlay(win, [bottom, top])
     p = Tuple(centroid(geom1))
