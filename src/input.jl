@@ -41,6 +41,12 @@ InputCallback(f, events::EventType; options = OverlayOptions()) = InputCallback(
 InputCallback(f, actions::ActionType; options = OverlayOptions()) = InputCallback(f, NO_EVENT, actions; options)
 InputCallback(f, actions::ActionType, events::EventType; options = OverlayOptions()) = InputCallback(f, events, actions; options)
 
+function reset!(callback::InputCallback)
+  reset!(callback.click_state)
+  reset!(callback.drag_state)
+  reset!(callback.pointer_state)
+end
+
 function Base.getproperty(callback::InputCallback, name::Symbol)
   name === :area && return getfield(callback, :area)::Optional{InputArea}
   name === :drag_state && return getfield(callback, :drag_state)::Optional{DragState}
@@ -58,6 +64,7 @@ mutable struct InputArea
     area = new(callbacks, aabb, z, contains)
     for callback in area.callbacks
       callback.area = area
+      reset!(callback)
     end
     area
   end
@@ -69,6 +76,7 @@ InputArea(aabb, z, contains) = InputArea(InputCallback[], aabb, z, contains)
 function intercept!(area::InputArea, callback::InputCallback)
   push!(area.callbacks, callback)
   callback.area = area
+  reset!(callback)
   callback
 end
 
@@ -159,6 +167,11 @@ end
 
 DragState() = DragState(nothing, false, nothing, TOKEN_DRAG_STATE)
 
+function reset!(state::DragState)
+  state.drag_source = nothing
+  state.dragged = false
+end
+
 mutable struct ClickState
   last_click::Optional{Input}
   click_count::Int64
@@ -167,12 +180,21 @@ end
 
 ClickState() = ClickState(nothing, 0, TOKEN_CLICK_STATE)
 
+function reset!(state::ClickState)
+  state.last_click = nothing
+  state.click_count = 0
+end
+
 mutable struct PointerState
   on_area::Bool
   const token::SubscriptionToken
 end
 
 PointerState() = PointerState(false, TOKEN_POINTER_STATE)
+
+function reset!(state::PointerState)
+  state.on_area = false
+end
 
 function notify!(callback::InputCallback, input::Input)
   action_triggered = false
@@ -231,11 +253,6 @@ end
 
 max_click_count(callback::InputCallback) = in(TRIPLE_CLICK, callback.actions) ? 3 : 2
 
-function reset!(state::ClickState)
-  state.last_click = nothing
-  state.click_count = 0
-end
-
 function notify_drag_clicked!(callback::InputCallback, input::Input)
   state = callback.drag_state
   reset!(state)
@@ -293,11 +310,6 @@ function notify_pointer_moved!(callback::InputCallback, input::Input{W}) where {
   input = Input{W}(EVENT, POINTER_ENTERED, callback.area, (@set event.type = POINTER_ENTERED), input, InputArea[], input.ui)
   consume!(input)
   true
-end
-
-function reset!(state::DragState)
-  state.drag_source = nothing
-  state.dragged = false
 end
 
 function consume!(input::Input)

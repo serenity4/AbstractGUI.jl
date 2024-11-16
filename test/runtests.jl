@@ -1,5 +1,5 @@
 using AbstractGUI
-using AbstractGUI: is_impacted_by, find_targets, consume!, is_subscribed
+using AbstractGUI: is_impacted_by, find_targets, consume!, is_subscribed, reset!
 using Accessors: @set, setproperties
 using Test
 using GeometryExperiments
@@ -36,6 +36,37 @@ function test_overlay_is_reset(ui::UIOverlay)
 end
 
 @testset "AbstractGUI.jl" begin
+  @testset "Callback state" begin
+    callback = InputCallback(identity, BUTTON_EVENT, DRAG)
+
+    callback.click_state.click_count = 1
+    callback.drag_state.dragged = true
+    callback.pointer_state.on_area = true
+    reset!(callback)
+    @test callback.click_state.click_count == 0
+    @test callback.drag_state.dragged == false
+    @test callback.pointer_state.on_area == false
+
+    callback.click_state.click_count = 0
+    callback.drag_state.dragged = true
+    callback.pointer_state.on_area = true
+    area = InputArea(geom1, 1.0, in(geom1))
+    intercept!(area, callback)
+    @test callback.area === area
+    @test callback.click_state.click_count == 0
+    @test callback.drag_state.dragged == false
+    @test callback.pointer_state.on_area == false
+
+    callback.click_state.click_count = 0
+    callback.drag_state.dragged = true
+    callback.pointer_state.on_area = true
+    area = InputArea([callback], geom1, 1.0, in(geom1))
+    @test callback.area === area
+    @test callback.click_state.click_count == 0
+    @test callback.drag_state.dragged == false
+    @test callback.pointer_state.on_area == false
+  end
+
   @testset "Detecting impacted areas" begin
     a = InputArea(geom1, 1.0, in(geom1))
     b = InputArea(geom2, 2.0, in(geom2))
