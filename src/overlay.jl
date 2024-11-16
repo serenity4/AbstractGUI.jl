@@ -8,39 +8,82 @@ When using this overlay, the user is responsible of:
 """
 mutable struct UIOverlay{W<:AbstractWindow}
   const areas::Dictionary{W, Set{InputArea}}
-  "Maximum time elapsed between two clicks to consider them as a double click action."
-  const drag_threshold::Float64
-  click::Optional{Pair{Event{W},Vector{InputArea}}} # to detect double click events
   over::Vector{InputArea} # area that a pointer is over
-  drags::Vector{Input{W}} # to continue drag events and detect drop events
+  subscriptions::Dictionary{EventType, Dictionary{InputCallback, SubscriptionToken}}
+  function UIOverlay{W}(areas::Dictionary{W,Set{InputArea}}) where {W}
+    ui = new{W}(areas, InputArea[], Dictionary{EventType, Dictionary{InputCallback, Nothing}}())
+    update_areas!(ui, areas)
+    ui
+  end
 end
 
-UIOverlay{W}(areas = Dictionary{W,Set{InputArea}}(); drag_threshold = 1/100) where {W<:AbstractWindow} = UIOverlay{W}(areas, drag_threshold, nothing, InputArea[], Input{W}[])
-UIOverlay(win::W, areas = []; drag_threshold = 1/100) where {W<:AbstractWindow} = UIOverlay{W}(dictionary([win => Set(areas)]); drag_threshold)
+UIOverlay{W}() where {W<:AbstractWindow} = UIOverlay{W}(Dictionary{W,Set{InputArea}}())
+UIOverlay(window::W, areas = []) where {W<:AbstractWindow} = UIOverlay{W}(dictionary([window => Set(areas)]))
 
-overlay!(ui::UIOverlay{W}, win::W, areas::AbstractVector) where {W} = overlay!(ui, win, Set(areas))
-overlay!(ui::UIOverlay{W}, win::W, areas::Set) where {W} = set!(ui.areas, win, areas)
-overlay!(ui::UIOverlay{W}, win::W, area::InputArea) where {W} = push!(get!(Set{InputArea}, ui.areas, win), area)
-unoverlay!(ui::UIOverlay{W}, win::W, area::InputArea) where {W} = delete!(get!(Set{InputArea}, ui.areas, win), area)
+overlay!(ui::UIOverlay{W}, window::W, areas::AbstractVector) where {W} = overlay!(ui, window, Set(areas))
+overlay!(ui::UIOverlay{W}, window::W, areas::Set) where {W} = set!(ui.areas, window, areas)
+overlay!(ui::UIOverlay{W}, window::W, area::InputArea) where {W} = push!(get!(Set{InputArea}, ui.areas, window), area)
+unoverlay!(ui::UIOverlay{W}, window::W, area::InputArea) where {W} = delete!(get!(Set{InputArea}, ui.areas, window), area)
 
-is_left_click(event::Event) = event.mouse_event.button == BUTTON_LEFT
+update_areas!(ui::UIOverlay{W}, window::W, areas::Vector{InputArea}) where {W} = update_areas!(ui, window, Set(areas))
+function update_areas!(ui::UIOverlay{W}, areas::Dictionary{W, Set{InputArea}}) where {W}
+  for (window, window_areas) in pairs(areas)
+    update_areas!(ui, window, window_areas)
+  end
+end
 
-function consume_next!(ui::UIOverlay{W}, event::Event{W}, targets) where {W}
-  # Process all targets to update internal state until we find one that intercepts the event.
-  isempty(targets) && return consume_next!(ui, event, nothing, InputArea[])
-  for i in eachindex(targets)
-    target = popfirst!(targets)
-    consume_next!(ui, event, target, targets) && return
+function update_areas!(ui::UIOverlay{W}, window::W, areas::Set{InputArea}) where {W}
+  for area in areas
+    set!(ui.areas, window, areas)
+  end
+end
+
+function subscribe!(ui::UIOverlay, events::EventType, callback::InputCallback, token::SubscriptionToken)
+  for event_type in enabled_flags(events)
+    event_type === NO_EVENT && continue
+    event_subscriptions = get!(Dictionary{InputCallback, Nothing}, ui.subscriptions, event_type)
+    prev_token = get(event_subscriptions, callback, nothing)
+    if isnothing(prev_token)
+      insert!(event_subscriptions, callback, token)
+    else
+      event_subscriptions[callback] = prev_token | token
+    end
+  end
+end
+
+function unsubscribe!(ui::UIOverlay, events::EventType, callback::InputCallback, token::SubscriptionToken)
+  for event_type in enabled_flags(events)
+    event_type === NO_EVENT && continue
+    event_subscriptions = get!(Dictionary{InputCallback, Nothing}, ui.subscriptions, event_type)
+    prev_token = get(event_subscriptions, callback, nothing)
+    isnothing(prev_token) && continue
+    new_token = prev_token & ~token
+    if iszero(new_token)
+      delete!(event_subscriptions, callback)
+    else
+      event_subscriptions[callback] = new_token
+    end
+  end
+end
+
+function notify_subscribers!(ui::UIOverlay{W}, input::Input{W}) where {W}
+  input.kind === EVENT || return
+  event_subscriptions = get(ui.subscriptions, input.type::EventType, nothing)
+  isnothing(event_subscriptions) && return
+  for callback in keys(event_subscriptions)
+    has_seen_input(callback, input) && continue
+    notify!(callback, input)
   end
 end
 
 function consume!(ui::UIOverlay{W}, event::Event{W}) where {W}
   targets = find_targets(ui, event)
+  target = !isempty(targets) ? targets[1] : nothing
   generate_pointer_exited_inputs_from_geometry!(ui, event, targets)
-  !isnothing(ui.click) && in(event.type, POINTER_MOVED) && in(BUTTON_LEFT, event.pointer_state.state) && generate_drag_inputs!(ui, event, targets)
-  event.type == BUTTON_RELEASED && is_left_click(event) && generate_drop_inputs!(ui, event, targets)
-  consume_next!(ui, event, targets)
-  event.type == BUTTON_RELEASED && is_left_click(event) && clear_drags!(ui)
+  if !consume_next!(ui, event, target, targets)
+    input = Input{W}(EVENT, event.type, target, event, targets, ui)
+    notify_subscribers!(ui, input)
+  end
   event.type == POINTER_MOVED && generate_pointer_exited_inputs_from_unprocessed!(ui, event, targets)
   nothing
 end
@@ -75,53 +118,18 @@ function generate_pointer_exited_inputs_from_unprocessed!(ui::UIOverlay{W}, even
   nothing
 end
 
-function generate_drag_inputs!(ui::UIOverlay{W}, event::Event{W}, targets) where {W}
-  target = isempty(targets) ? nothing : targets[1]
-  # Keep generating `DRAG` events on drag.
-  for drag in ui.drags
-    # Keep dragging.
-    input_drag = Input{W}(ACTION, DRAG, drag.area, (target, event), drag, InputArea[], ui)
-    consume!(input_drag)
-  end
-
-  source, clicked = ui.click
-  distance(source, event) ≥ ui.drag_threshold || return
-  to_delete = Int[]
-  for (i, area) in enumerate(clicked)
-    in(DRAG, actions(area)) || continue
-    # Start dragging.
-    push!(to_delete, i)
-    drag = Input{W}(EVENT, event.type, area, event, InputArea[], ui)
-    push!(ui.drags, drag)
-    source_input = Input{W}(EVENT, source.type, area, source, InputArea[], ui)
-    input_drag = Input{W}(ACTION, DRAG, area, (target, event), source_input, InputArea[], ui)
-    consume!(input_drag)
-  end
-  splice!(clicked, to_delete)
-  nothing
-end
-
-function generate_drop_inputs!(ui::UIOverlay{W}, event::Event{W}, targets) where {W}
-  for drag in ui.drags
-    # Emit a drop action if relevant.
-    in(DROP, actions(drag.area)) || continue
-    target = isempty(targets) ? nothing : targets[1]
-    consume!(Input{W}(ACTION, DROP, target, (drag, event), InputArea[], ui))
-  end
-end
-
-function clear_drags!(ui::UIOverlay{W}) where {W}
-  empty!(ui.drags)
-  ui.click = nothing
-end
-
-function consume_next!(ui::UIOverlay{W}, event::Event{W}, target::Optional{InputArea}, remaining_targets::AbstractVector{InputArea}) where {W}
-  (; drags, over) = ui
+function consume_next!(ui::UIOverlay{W}, event::Event{W}, target::Optional{InputArea}, targets::AbstractVector{InputArea}) where {W}
+  (; over) = ui
   target_events = isnothing(target) ? nothing : impacting_events(target)
   target_actions = isnothing(target) ? nothing : actions(target)
 
-  local input::Optional{Input{W}} = nothing
-  local input_pointer_entered::Optional{Input{W}} = nothing
+  input = nothing
+
+  if !isnothing(target) && is_impacted_by(target, event.type)
+    input = Input{W}(EVENT, event.type, target, event, targets, ui)
+    consume!(input)
+    notify_subscribers!(ui, input)
+  end
 
   # Keep track of pointer enters.
   if event.type == POINTER_MOVED && !isnothing(target)
@@ -130,32 +138,10 @@ function consume_next!(ui::UIOverlay{W}, event::Event{W}, target::Optional{Input
       pushfirst!(over, target)
       if in(POINTER_ENTERED, target_events)
         input_pointer_entered = Input{W}(EVENT, POINTER_ENTERED, target, (@set event.type = POINTER_ENTERED), InputArea[], ui)
+        consume!(input_pointer_entered)
       end
     end
   end
-
-  if !isnothing(target) && in(event.type, target_events)
-    input = Input{W}(EVENT, event.type, target, event, remaining_targets, ui)
-  end
-
-  if event.type == BUTTON_PRESSED && is_left_click(event) && !isnothing(target)
-    # Add `target` to the clicked areas.
-    if isnothing(ui.click)
-      ui.click = event => [target]
-    else
-      source, clicked = ui.click
-      if source === event
-        push!(clicked, target)
-      else
-        # If we receive multiple `BUTTON_PRESSED` events without `BUTTON_RELEASE` in between,
-        # discard the previous events in favor of the last one.
-        ui.click = event => [target]
-      end
-    end
-  end
-
-  !isnothing(input) && consume!(input)
-  !isnothing(input_pointer_entered) && consume!(input_pointer_entered)
 
   !isnothing(input)
 end
