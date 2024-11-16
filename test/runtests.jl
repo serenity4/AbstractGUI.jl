@@ -33,7 +33,6 @@ end
 
 function test_overlay_is_reset(ui::UIOverlay)
   @test isempty(ui.subscriptions) || all(isempty, ui.subscriptions)
-  @test isempty(ui.over)
 end
 
 @testset "AbstractGUI.jl" begin

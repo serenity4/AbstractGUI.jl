@@ -31,8 +31,9 @@ mutable struct InputCallback
   area::Any #= Optional{InputArea} =#
   drag_state::Any #= DragState =#
   click_state::Any #= ClickState =#
+  pointer_state::Any #= PointerState =#
   function InputCallback(f, events::EventType, actions::ActionType; options::OverlayOptions = OverlayOptions())
-    new(f, events, actions, options, nothing, DragState(), ClickState())
+    new(f, events, actions, options, nothing, DragState(), ClickState(), PointerState())
   end
 end
 
@@ -44,6 +45,7 @@ function Base.getproperty(callback::InputCallback, name::Symbol)
   name === :area && return getfield(callback, :area)::Optional{InputArea}
   name === :drag_state && return getfield(callback, :drag_state)::Optional{DragState}
   name === :click_state && return getfield(callback, :click_state)::Optional{ClickState}
+  name === :pointer_state && return getfield(callback, :pointer_state)::Optional{PointerState}
   getfield(callback, name)
 end
 
@@ -52,6 +54,13 @@ mutable struct InputArea
   aabb::Box{2,Float64}
   z::Float64
   contains::Any #= Callable =#
+  function InputArea(on_input, aabb, z, contains)
+    area = new(on_input, aabb, z, contains)
+    for callback in area.on_input
+      callback.area = area
+    end
+    area
+  end
 end
 
 InputArea(callback::InputCallback, aabb, z, contains) = InputArea([callback], aabb, z, contains)
@@ -77,6 +86,7 @@ function impacting_events(callback::InputCallback)
   events = callback.events
   notify_drag_state(callback) && (events |= BUTTON_PRESSED | BUTTON_RELEASED | POINTER_MOVED)
   notify_multiclick_state(callback) && (events |= BUTTON_PRESSED)
+  notify_pointer_state(callback) && (events |= POINTER_MOVED)
   events
 end
 
@@ -132,17 +142,19 @@ end
 notify_drag_state(callback::InputCallback) = in(DRAG, callback.actions) || in(DROP, callback.actions)
 notify_multiclick_state(callback::InputCallback) = in(DOUBLE_CLICK, callback.actions) || in(TRIPLE_CLICK, callback.
 actions)
+notify_pointer_state(callback::InputCallback) = in(POINTER_ENTERED, callback.events) || in(POINTER_EXITED, callback.events)
 
 @bitmask SubscriptionToken::UInt8 begin
   TOKEN_DRAG_STATE = 0x01
   TOKEN_CLICK_STATE = 0x02
+  TOKEN_POINTER_STATE = 0x04
 end
 
 mutable struct DragState
   drag_source::Optional{Input}
   dragged::Bool
   drop_target::Optional{Input}
-  token::SubscriptionToken
+  const token::SubscriptionToken
 end
 
 DragState() = DragState(nothing, false, nothing, TOKEN_DRAG_STATE)
@@ -150,20 +162,30 @@ DragState() = DragState(nothing, false, nothing, TOKEN_DRAG_STATE)
 mutable struct ClickState
   last_click::Optional{Input}
   click_count::Int64
-  token::SubscriptionToken
+  const token::SubscriptionToken
 end
 
 ClickState() = ClickState(nothing, 0, TOKEN_CLICK_STATE)
 
+mutable struct PointerState
+  on_area::Bool
+  const token::SubscriptionToken
+end
+
+PointerState() = PointerState(false, TOKEN_POINTER_STATE)
+
 function notify!(callback::InputCallback, input::Input)
+  action_triggered = false
   if input.type === BUTTON_PRESSED && is_left_click(input)
     notify_drag_state(callback) && notify_drag_clicked!(callback, input)
-    notify_multiclick_state(callback) && notify_multiclick_clicked!(callback, input) && return true
+    notify_multiclick_state(callback) && (action_triggered |= notify_multiclick_clicked!(callback, input))
   elseif input.type === BUTTON_RELEASED && is_left_click(input)
-    notify_drag_state(callback) && notify_drag_released!(callback, input) && return true
+    notify_drag_state(callback) && (action_triggered |= notify_drag_released!(callback, input))
   elseif input.type === POINTER_MOVED
-    notify_drag_state(callback) && notify_drag_moved!(callback, input) && return true
+    notify_drag_state(callback) && (action_triggered |= notify_drag_moved!(callback, input))
+    notify_pointer_state(callback) && (action_triggered |= notify_pointer_moved!(callback, input))
   end
+  action_triggered
 end
 
 function notify_multiclick_clicked!(callback::InputCallback, input::Input{W}) where {W}
@@ -228,7 +250,7 @@ function notify_drag_released!(callback::InputCallback, input::Input)
   !state.dragged && return false
   reset!(state)
   in(DROP, callback.actions) || return false
-  input = Input{W}(ACTION, DROP, input.area, (drag, event), input, input.targets, ui)
+  input = Input{W}(ACTION, DROP, callback.area, (drag, event), input, input.targets, ui)
   state.drop_target = input
   consume!(input)
   true
@@ -245,6 +267,30 @@ function notify_drag_moved!(callback::InputCallback, input::Input{W}) where {W}
 
   in(DRAG, callback.actions) || return false
   input = Input{W}(ACTION, DRAG, callback.area, (input.area, input.event), input, input.targets, input.ui)
+  consume!(input)
+  true
+end
+
+function notify_pointer_moved!(callback::InputCallback, input::Input{W}) where {W}
+  state = callback.pointer_state
+  was_on_area = state.on_area
+  (; event) = input
+
+  if input.area !== callback.area
+    state.on_area = false
+    if was_on_area
+      unsubscribe!(input.ui, POINTER_MOVED, callback, state.token)
+      input = Input{W}(EVENT, POINTER_EXITED, callback.area, (@set event.type = POINTER_EXITED), input, InputArea[], input.ui)
+      consume!(input)
+      return true
+    end
+    return false
+  end
+
+  state.on_area = true
+  was_on_area && return false
+  subscribe!(input.ui, POINTER_MOVED, callback, state.token)
+  input = Input{W}(EVENT, POINTER_ENTERED, callback.area, (@set event.type = POINTER_ENTERED), input, InputArea[], input.ui)
   consume!(input)
   true
 end
@@ -267,16 +313,13 @@ function consume!(input::Input)
 end
 
 function (callback::InputCallback)(input::Input{W}) where {W}
-  if input.kind === EVENT
-    if in(input.type, BUTTON_EVENT) && notify_multiclick_state(callback)
-      executed = notify!(callback, input)
-      executed && return false
-    end
-
-    if in(input.type, BUTTON_EVENT | POINTER_MOVED) && notify_drag_state(callback)
-      executed = notify!(callback, input)
-      executed && return false
-    end
+  if input.kind === EVENT && (
+        in(input.type, BUTTON_EVENT) && notify_multiclick_state(callback) ||
+        in(input.type, BUTTON_EVENT | POINTER_MOVED) && notify_drag_state(callback) ||
+        in(input.type, POINTER_MOVED) && notify_pointer_state(callback)
+      )
+    executed = notify!(callback, input)
+    executed && return false
   end
 
   isa(input.type, EventType) && !in(input.type, callback.events) && return false
