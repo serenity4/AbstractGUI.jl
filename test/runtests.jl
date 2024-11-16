@@ -1,5 +1,5 @@
 using AbstractGUI
-using AbstractGUI: is_impacted_by, find_targets, consume!
+using AbstractGUI: is_impacted_by, find_targets, consume!, is_subscribed
 using Accessors: @set, setproperties
 using Test
 using GeometryExperiments
@@ -218,5 +218,33 @@ end
     @test input.type === BUTTON_RELEASED
     @test input.area === bottom
     test_overlay_is_reset(ui)
+  end
+
+  @testset "Updating overlays" begin
+    a = InputArea(geom1, 1.0, in(geom1))
+    b = InputArea(geom1, 2.0, in(geom1))
+    c = InputArea(geom1, 3.0, in(geom1))
+    ca = intercept!(add_input, a, DOUBLE_CLICK)
+    cb = intercept!(add_input, b, DOUBLE_CLICK)
+    cc = intercept!(add_input, c, DOUBLE_CLICK)
+    ui = UIOverlay(window, [a, b])
+    p = Tuple(centroid(geom1))
+    event = Event(BUTTON_PRESSED, MouseEvent(BUTTON_LEFT, BUTTON_LEFT), p, time(), window)
+    input = generate_input!(ui, event)
+    @test length(ui.subscriptions) == 1
+    @test haskey(ui.subscriptions, BUTTON_PRESSED)
+    subscriptions = ui.subscriptions[BUTTON_PRESSED]
+    @test length(subscriptions) == 2
+    @test is_subscribed(ui, ca)
+    @test is_subscribed(ui, cb)
+    update_overlays!(ui, window, [b, c])
+    @test length(subscriptions) == 1
+    @test !is_subscribed(ui, ca)
+    @test is_subscribed(ui, cb)
+    event = Event(BUTTON_PRESSED, MouseEvent(BUTTON_LEFT, BUTTON_LEFT), p, time(), window)
+    input = generate_input!(ui, event)
+    @test length(subscriptions) == 1
+    @test !is_subscribed(ui, cb)
+    @test is_subscribed(ui, cc)
   end
 end;

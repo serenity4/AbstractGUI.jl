@@ -50,13 +50,13 @@ function Base.getproperty(callback::InputCallback, name::Symbol)
 end
 
 mutable struct InputArea
-  on_input::Vector{InputCallback}
+  callbacks::Vector{InputCallback}
   aabb::Box{2,Float64}
   z::Float64
   contains::Any #= Callable =#
-  function InputArea(on_input, aabb, z, contains)
-    area = new(on_input, aabb, z, contains)
-    for callback in area.on_input
+  function InputArea(callbacks, aabb, z, contains)
+    area = new(callbacks, aabb, z, contains)
+    for callback in area.callbacks
       callback.area = area
     end
     area
@@ -67,20 +67,20 @@ InputArea(callback::InputCallback, aabb, z, contains) = InputArea([callback], aa
 InputArea(aabb, z, contains) = InputArea(InputCallback[], aabb, z, contains)
 
 function intercept!(area::InputArea, callback::InputCallback)
-  push!(area.on_input, callback)
+  push!(area.callbacks, callback)
   callback.area = area
   callback
 end
 
 intercept!(f, area::InputArea, arg, args...) = intercept!(area, InputCallback(f, arg, args...))
 
-actions(area::InputArea) = actions(area.on_input)
+actions(area::InputArea) = actions(area.callbacks)
 actions(callbacks::Vector{InputCallback}) = foldl((flags, callback) -> flags | callback.actions, callbacks; init = NO_ACTION)
 
-events(area::InputArea) = events(area.on_input)
+events(area::InputArea) = events(area.callbacks)
 events(callbacks::Vector{InputCallback}) = foldl((flags, callback) -> flags | callback.events, callbacks; init = NO_EVENT)
 
-impacting_events(area::InputArea) = impacting_events(area.on_input)
+impacting_events(area::InputArea) = impacting_events(area.callbacks)
 impacting_events(callbacks::Vector{InputCallback}) = foldl((flags, callback) -> flags | impacting_events(callback), callbacks; init = NO_EVENT)
 function impacting_events(callback::InputCallback)
   events = callback.events
@@ -303,7 +303,7 @@ end
 function consume!(input::Input)
   input.propagate = false
   called = false
-  for callback in input.area.on_input
+  for callback in input.area.callbacks
     called |= callback(input)
   end
   propagated = (input.propagate || !called) && propagate_input!(input, input.propagate_to)

@@ -13,7 +13,7 @@ mutable struct UIOverlay{W<:AbstractWindow}
   subscriptions::Dictionary{EventType, Dictionary{InputCallback, SubscriptionToken}}
   function UIOverlay{W}(areas::Dictionary{W,Set{InputArea}}) where {W}
     ui = new{W}(areas, nothing, Dictionary{EventType, Dictionary{InputCallback, Nothing}}())
-    update_areas!(ui, areas)
+    update_overlays!(ui, areas)
     ui
   end
 end
@@ -26,17 +26,23 @@ overlay!(ui::UIOverlay{W}, window::W, areas::Set) where {W} = set!(ui.areas, win
 overlay!(ui::UIOverlay{W}, window::W, area::InputArea) where {W} = push!(get!(Set{InputArea}, ui.areas, window), area)
 unoverlay!(ui::UIOverlay{W}, window::W, area::InputArea) where {W} = delete!(get!(Set{InputArea}, ui.areas, window), area)
 
-update_areas!(ui::UIOverlay{W}, window::W, areas::Vector{InputArea}) where {W} = update_areas!(ui, window, Set(areas))
-function update_areas!(ui::UIOverlay{W}, areas::Dictionary{W, Set{InputArea}}) where {W}
+update_overlays!(ui::UIOverlay{W}, window::W, areas::Vector{InputArea}) where {W} = update_overlays!(ui, window, Set(areas))
+function update_overlays!(ui::UIOverlay{W}, areas::Dictionary{W, Set{InputArea}}) where {W}
   for (window, window_areas) in pairs(areas)
-    update_areas!(ui, window, window_areas)
+    update_overlays!(ui, window, window_areas)
   end
 end
 
-function update_areas!(ui::UIOverlay{W}, window::W, areas::Set{InputArea}) where {W}
-  for area in areas
-    set!(ui.areas, window, areas)
+function update_overlays!(ui::UIOverlay{W}, window::W, areas::Set{InputArea}) where {W}
+  removed_areas = filter(!in(areas), collect(ui.areas[window]))
+  for subscription in ui.subscriptions
+    for area in removed_areas
+      for callback in area.callbacks
+        unset!(subscription, callback)
+      end
+    end
   end
+  set!(ui.areas, window, areas)
 end
 
 function subscribe!(ui::UIOverlay, events::EventType, callback::InputCallback, token::SubscriptionToken)
@@ -65,6 +71,13 @@ function unsubscribe!(ui::UIOverlay, events::EventType, callback::InputCallback,
       event_subscriptions[callback] = new_token
     end
   end
+end
+
+function is_subscribed(ui::UIOverlay, callback::InputCallback)
+  for subscription in ui.subscriptions
+    haskey(subscription, callback) && return true
+  end
+  false
 end
 
 function notify_subscribers!(ui::UIOverlay{W}, input::Input{W}) where {W}
