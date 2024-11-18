@@ -16,7 +16,7 @@ include("state.jl")
 include("overlay.jl")
 
 export
-  UIOverlay, OverlayOptions, overlay!, unoverlay!,
+  UIOverlay, OverlayOptions, overlay!, unoverlay!, is_area_active,
   InputCallback, InputArea,
   Input, consume!, propagate!
 

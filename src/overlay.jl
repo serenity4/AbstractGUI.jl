@@ -57,6 +57,14 @@ function unoverlay!(ui::UIOverlay{W}, window::W, area::InputArea, callback::Inpu
   true
 end
 
+function is_area_active(ui::UIOverlay{W}, window::W, area::InputArea) where {W}
+  areas = get(ui.areas, window, nothing)
+  isnothing(areas) && return false
+  callbacks = get(ui.callbacks, area, nothing)
+  isnothing(callbacks) && return false
+  !isempty(callbacks)
+end
+
 function subscribe!(ui::UIOverlay, events::EventType, state::CallbackState, token::SubscriptionToken)
   for event_type in enabled_flags(events)
     event_type === NO_EVENT && continue

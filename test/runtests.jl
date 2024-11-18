@@ -50,8 +50,10 @@ end
     overlay!(ui, window, a, ca)
     @test ui.callbacks[a] == [ca]
     overlay!(ui, window, a, InputCallback(nothing, KEY_PRESSED))
+    @test is_area_active(ui, window, a)
     @test ui.callbacks[a] == [ca]
     @test unoverlay!(ui, window, a, ca)
+    @test !is_area_active(ui, window, a)
     @test !unoverlay!(ui, window, a, ca)
     @test ui.areas[window] == Set([b])
     @test !unoverlay!(ui, window, b, ca)
