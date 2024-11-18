@@ -8,14 +8,16 @@ using Accessors: @set
 
 const Optional{T} = Union{Nothing, T}
 
+include("types.jl")
+include("area.jl")
 include("input.jl")
+include("callback.jl")
+include("state.jl")
 include("overlay.jl")
 
-@eval $(Expr(:public, :next_target))
-
 export
-  UIOverlay, overlay!, unoverlay!, update_overlays!,
-  InputCallback, InputArea, intercept!,
+  UIOverlay, OverlayOptions, overlay!, unoverlay!,
+  InputCallback, InputArea,
   Input, consume!, propagate!
 
 end

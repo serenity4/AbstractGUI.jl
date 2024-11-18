@@ -1,5 +1,5 @@
 using AbstractGUI
-using AbstractGUI: is_impacted_by, find_targets, consume!, is_subscribed, reset!
+using AbstractGUI: CallbackState, is_impacted_by, find_targets, is_subscribed, reset!
 using Accessors: @set, setproperties
 using Test
 using GeometryExperiments
@@ -36,65 +36,78 @@ function test_overlay_is_reset(ui::UIOverlay)
 end
 
 @testset "AbstractGUI.jl" begin
-  @testset "Callback state" begin
-    callback = InputCallback(identity, BUTTON_EVENT, DRAG)
-
-    callback.click_state.click_count = 1
-    callback.drag_state.dragged = true
-    callback.pointer_state.on_area = true
-    reset!(callback)
-    @test callback.click_state.click_count == 0
-    @test callback.drag_state.dragged == false
-    @test callback.pointer_state.on_area == false
-
-    callback.click_state.click_count = 0
-    callback.drag_state.dragged = true
-    callback.pointer_state.on_area = true
-    area = InputArea(geom1, 1.0, in(geom1))
-    intercept!(area, callback)
-    @test callback.area === area
-    @test callback.click_state.click_count == 0
-    @test callback.drag_state.dragged == false
-    @test callback.pointer_state.on_area == false
-
-    callback.click_state.click_count = 0
-    callback.drag_state.dragged = true
-    callback.pointer_state.on_area = true
-    area = InputArea([callback], geom1, 1.0, in(geom1))
-    @test callback.area === area
-    @test callback.click_state.click_count == 0
-    @test callback.drag_state.dragged == false
-    @test callback.pointer_state.on_area == false
-  end
-
-  @testset "Detecting impacted areas" begin
+  @testset "Overlays" begin
+    ui = UIOverlay{FakeWindow}()
     a = InputArea(geom1, 1.0, in(geom1))
     b = InputArea(geom2, 2.0, in(geom2))
     c = InputArea(geom3, 1.0, in(geom1))
-    @test !is_impacted_by(a, KEY_PRESSED)
-    @test !is_impacted_by(b, KEY_RELEASED)
-    @test !is_impacted_by(c, BUTTON_PRESSED)
-    intercept!(nothing, a, KEY_PRESSED)
-    intercept!(nothing, b, KEY_RELEASED)
-    intercept!(nothing, c, DRAG)
-    @test is_impacted_by(a, KEY_PRESSED)
-    @test !is_impacted_by(a, KEY_RELEASED)
-    @test is_impacted_by(b, KEY_RELEASED)
-    @test !is_impacted_by(b, KEY_PRESSED)
-    @test is_impacted_by(c, BUTTON_PRESSED)
-    @test is_impacted_by(c, BUTTON_RELEASED)
-    @test is_impacted_by(c, BUTTON_EVENT)
-    @test is_impacted_by(c, POINTER_MOVED)
-    @test !is_impacted_by(c, KEY_PRESSED)
+    ca = overlay!(ui, window, a, InputCallback(nothing, KEY_PRESSED))
+    cb1 = overlay!(ui, window, b, InputCallback(nothing, KEY_RELEASED))
+    cb2 = overlay!(ui, window, b, InputCallback(nothing, DRAG))
+    @test ui.areas[window] == Set([a, b])
+    @test ui.callbacks[a] == [ca]
+    @test ui.callbacks[b] == [cb1, cb2]
+    overlay!(ui, window, a, ca)
+    @test ui.callbacks[a] == [ca]
+    overlay!(ui, window, a, InputCallback(nothing, KEY_PRESSED))
+    @test ui.callbacks[a] == [ca]
+    @test unoverlay!(ui, window, a, ca)
+    @test !unoverlay!(ui, window, a, ca)
+    @test ui.areas[window] == Set([b])
+    @test !unoverlay!(ui, window, b, ca)
+    @test unoverlay!(ui, window, b, cb1)
+    @test ui.areas[window] == Set([b])
+    @test unoverlay!(ui, window, b, cb2)
+    @test !haskey(ui.areas, window)
+  end
+
+  @testset "Callback state" begin
+    ui = UIOverlay{FakeWindow}()
+    area = InputArea(geom1, 1.0, in(geom1))
+    callback = InputCallback(identity, BUTTON_EVENT, DRAG)
+    overlay!(ui, window, area, callback)
+    state = ui.state[area][callback]
+
+    state.click_state.click_count = 1
+    state.drag_state.dragged = true
+    state.pointer_state.on_area = true
+    reset!(state)
+    @test state.click_state.click_count == 0
+    @test state.drag_state.dragged == false
+    @test state.pointer_state.on_area == false
+
+    unoverlay!(ui, window, area, callback)
+    overlay!(ui, window, area, callback)
+    @test ui.state[area][callback] !== state
+  end
+
+  @testset "Detecting impacted areas" begin
+    ui = UIOverlay{FakeWindow}()
+    a = InputArea(geom1, 1.0, in(geom1))
+    b = InputArea(geom2, 2.0, in(geom2))
+    c = InputArea(geom3, 1.0, in(geom1))
+    overlay!(ui, window, a, InputCallback(nothing, KEY_PRESSED))
+    overlay!(ui, window, b, InputCallback(nothing, KEY_RELEASED))
+    overlay!(ui, window, c, InputCallback(nothing, DRAG))
+    @test is_impacted_by(a, KEY_PRESSED, ui)
+    @test !is_impacted_by(a, KEY_RELEASED, ui)
+    @test is_impacted_by(b, KEY_RELEASED, ui)
+    @test !is_impacted_by(b, KEY_PRESSED, ui)
+    @test is_impacted_by(c, BUTTON_PRESSED, ui)
+    @test is_impacted_by(c, BUTTON_RELEASED, ui)
+    @test is_impacted_by(c, BUTTON_EVENT, ui)
+    @test is_impacted_by(c, POINTER_MOVED, ui)
+    @test !is_impacted_by(c, KEY_PRESSED, ui)
+    @test is_impacted_by(a, KEY_PRESSED, ui)
   end
 
   @testset "Generation of basic (stateless) inputs" begin
+    ui = UIOverlay{FakeWindow}()
     bottom = InputArea(geom1, 1.0, in(geom1))
     top = InputArea(geom2, 2.0, in(geom2))
-    intercept!(add_input, bottom, KEY_PRESSED)
-    intercept!(add_input, top, KEY_RELEASED)
+    overlay!(add_input, ui, window, bottom, KEY_PRESSED)
+    overlay!(add_input, ui, window, top, KEY_RELEASED)
     p = (0.0313, 0.0313)
-    ui = UIOverlay(window, [bottom, top])
     event = Event(KEY_PRESSED, KeyEvent(:Z02, KeySymbol(:z), 'z', NO_MODIFIERS), p, time(), window)
     @test find_targets(ui, event) == [bottom]
     input = generate_input!(ui, event)
@@ -110,22 +123,25 @@ end
   end
 
   @testset "Generation of `DRAG` actions" begin
+    ui = UIOverlay{FakeWindow}()
     area = InputArea(geom3, 1.0, in(geom1))
-    callback = intercept!(add_input, area, DRAG)
+    callback = overlay!(add_input, ui, window, area, DRAG)
     p = Tuple(centroid(geom1))
-    ui = UIOverlay(window, [area])
-    event = Event(BUTTON_PRESSED, MouseEvent(BUTTON_LEFT, BUTTON_NONE), p, time(), window)
-    @test isnothing(generate_input!(ui, event))
-    @test !isnothing(callback.drag_state.drag_source)
+    source = Event(BUTTON_PRESSED, MouseEvent(BUTTON_LEFT, BUTTON_NONE), p, time(), window)
+    @test isnothing(generate_input!(ui, source))
+    state = ui.state[area][callback]
+    @test !isnothing(state.drag_state.source)
     event = Event(POINTER_MOVED, PointerState(BUTTON_LEFT, NO_MODIFIERS), p .+ 0.01, time(), window)
     input = generate_input!(ui, event)
     @test input.area === area
     @test input.type === DRAG
     @test input.drag === (area, event)
+    @test input.source.event === source
     event = Event(POINTER_MOVED, PointerState(BUTTON_LEFT, NO_MODIFIERS), p .+ 0.4, time(), window)
     input = generate_input!(ui, event)
     @test input.type === DRAG
     @test input.drag === (nothing, event)
+    @test input.source.event === source
     event = Event(BUTTON_RELEASED, MouseEvent(BUTTON_LEFT, BUTTON_LEFT), p .+ 0.01, time(), window)
     @test isnothing(generate_input!(ui, event))
     event = Event(POINTER_MOVED, PointerState(BUTTON_NONE, NO_MODIFIERS), p .+ 0.02, time(), window)
@@ -134,17 +150,16 @@ end
   end
 
   @testset "Propagation of inputs" begin
+    ui = UIOverlay{FakeWindow}()
     bottom = InputArea(geom3, 0.8, in(geom1))
     middle = InputArea(geom2, 1.0, in(geom2))
     top_1 = InputArea(geom2, 3.0, in(geom2))
     top_2 = InputArea(geom2, 3.0, in(geom2))
-    intercept!(add_input, bottom, DRAG)
-    intercept!(add_input, middle, POINTER_MOVED)
-    intercept!(input -> (add_input(input) && propagate!((x -> @test x), input)), top_1, POINTER_MOVED)
-    intercept!(input -> (add_input(input) && propagate!((x -> @test !x), input, [])), top_2, POINTER_MOVED)
+    overlay!(add_input, ui, window, bottom, DRAG)
+    overlay!(add_input, ui, window, middle, POINTER_MOVED)
+    overlay!(input -> (add_input(input) && propagate!((x -> @test x), input)), ui, window, top_1, POINTER_MOVED)
 
     # Propagate to the next target.
-    ui = UIOverlay(window, [middle, top_1, bottom])
     event = Event(POINTER_MOVED, PointerState(BUTTON_LEFT, NO_MODIFIERS), (0.0313, 0.0313), time(), window)
     targets = find_targets(ui, event)
     @test targets == [top_1, middle, bottom]
@@ -152,17 +167,18 @@ end
     test_overlay_is_reset(ui)
 
     # Don't propagate if the allowed subset of remaining targets is empty.
-    ui = UIOverlay(window, [middle, bottom, top_2])
+    unoverlay!(ui, window, top_1)
+    overlay!(input -> (add_input(input) && propagate!((x -> @test !x), input, [])), ui, window, top_2, POINTER_MOVED)
     @test (x -> x.area).(generate_inputs!(ui, event)) == [top_2]
     test_overlay_is_reset(ui)
   end
 
   @testset "Generation of `POINTER_ENTERED`/`POINTER_EXITED` events" begin
+    ui = UIOverlay{FakeWindow}()
     bottom = InputArea(geom2, 2.0, in(geom2))
     top = InputArea(geom1, 1.0, in(geom1))
-    intercept!(add_input, bottom, POINTER_ENTERED | POINTER_EXITED)
-    intercept!(add_input, top, POINTER_ENTERED | POINTER_EXITED)
-    ui = UIOverlay(window, [top, bottom])
+    overlay!(add_input, ui, window, bottom, POINTER_ENTERED | POINTER_EXITED)
+    overlay!(add_input, ui, window, top, POINTER_ENTERED | POINTER_EXITED)
     event = Event(POINTER_MOVED, PointerState(BUTTON_NONE, NO_MODIFIERS), Tuple(centroid(geom1)), time(), window)
     input = generate_input!(ui, event)
     @test input.type === POINTER_ENTERED
@@ -179,9 +195,9 @@ end
   end
 
   @testset "Generation of `DOUBLE_CLICK` actions" begin
+    ui = UIOverlay{FakeWindow}()
     area = InputArea(geom1, 1.0, in(geom1))
-    intercept!(add_input, area, BUTTON_EVENT, DOUBLE_CLICK)
-    ui = UIOverlay(window, [area])
+    overlay!(add_input, ui, window, area, BUTTON_EVENT, DOUBLE_CLICK)
     p = Tuple(centroid(geom1))
     event = Event(BUTTON_PRESSED, MouseEvent(BUTTON_LEFT, BUTTON_NONE), p, time(), window)
     input = generate_input!(ui, event)
@@ -198,15 +214,17 @@ end
     @test input.area === area
     test_overlay_is_reset(ui)
 
-    area = InputArea(geom1, 1.0, in(geom1))
-    callback = intercept!(add_input, area, BUTTON_PRESSED, DOUBLE_CLICK)
+    ui = UIOverlay{FakeWindow}()
+    options = OverlayOptions()
+    overlay!(add_input, ui, window, area, BUTTON_RELEASED; options)
+    overlay!(add_input, ui, window, area, BUTTON_PRESSED, DOUBLE_CLICK; options)
     event = Event(BUTTON_PRESSED, MouseEvent(BUTTON_LEFT, BUTTON_NONE), p, time(), window)
     input = generate_input!(ui, event)
     @test input.type === BUTTON_PRESSED
     event = Event(BUTTON_RELEASED, MouseEvent(BUTTON_LEFT, BUTTON_LEFT), p, time(), window)
     input = generate_input!(ui, event)
     @test input.type === BUTTON_RELEASED
-    event = Event(BUTTON_PRESSED, MouseEvent(BUTTON_LEFT, BUTTON_NONE), p, event.time + 2callback.options.double_click_period, window)
+    event = Event(BUTTON_PRESSED, MouseEvent(BUTTON_LEFT, BUTTON_NONE), p, event.time + 2options.double_click_period, window)
     input = generate_input!(ui, event)
     @test input.type === BUTTON_PRESSED
     event = Event(BUTTON_RELEASED, MouseEvent(BUTTON_LEFT, BUTTON_LEFT), p, time(), window)
@@ -223,11 +241,11 @@ end
   end
 
   @testset "Generation of `DOUBLE_CLICK` actions on secondary targets" begin
+    ui = UIOverlay{FakeWindow}()
     bottom = InputArea(geom1, 1.0, in(geom1))
     top = InputArea(geom1, 2.0, in(geom1))
-    intercept!(input -> add_input(input), bottom, BUTTON_EVENT, DOUBLE_CLICK)
-    intercept!(input -> add_input(input) && propagate!(input), top, DOUBLE_CLICK)
-    ui = UIOverlay(window, [bottom, top])
+    overlay!(input -> add_input(input), ui, window, bottom, BUTTON_EVENT, DOUBLE_CLICK)
+    overlay!(input -> add_input(input) && propagate!(input), ui, window, top, DOUBLE_CLICK)
     p = Tuple(centroid(geom1))
     event = Event(BUTTON_PRESSED, MouseEvent(BUTTON_LEFT, BUTTON_NONE), p, time(), window)
     input = generate_input!(ui, event)
@@ -252,13 +270,12 @@ end
   end
 
   @testset "Updating overlays" begin
+    ui = UIOverlay{FakeWindow}()
     a = InputArea(geom1, 1.0, in(geom1))
     b = InputArea(geom1, 2.0, in(geom1))
     c = InputArea(geom1, 3.0, in(geom1))
-    ca = intercept!(add_input, a, DOUBLE_CLICK)
-    cb = intercept!(add_input, b, DOUBLE_CLICK)
-    cc = intercept!(add_input, c, DOUBLE_CLICK)
-    ui = UIOverlay(window, [a, b])
+    ca = overlay!(add_input, ui, window, a, DOUBLE_CLICK)
+    cb = overlay!(add_input, ui, window, b, DOUBLE_CLICK)
     p = Tuple(centroid(geom1))
     event = Event(BUTTON_PRESSED, MouseEvent(BUTTON_LEFT, BUTTON_LEFT), p, time(), window)
     input = generate_input!(ui, event)
@@ -266,16 +283,17 @@ end
     @test haskey(ui.subscriptions, BUTTON_PRESSED)
     subscriptions = ui.subscriptions[BUTTON_PRESSED]
     @test length(subscriptions) == 2
-    @test is_subscribed(ui, ca)
-    @test is_subscribed(ui, cb)
-    update_overlays!(ui, window, [b, c])
+    @test is_subscribed(ui, a, ca)
+    @test is_subscribed(ui, b, cb)
+    unoverlay!(ui, window, a)
+    cc = overlay!(add_input, ui, window, c, DOUBLE_CLICK)
     @test length(subscriptions) == 1
-    @test !is_subscribed(ui, ca)
-    @test is_subscribed(ui, cb)
+    @test !is_subscribed(ui, a, ca)
+    @test is_subscribed(ui, b, cb)
     event = Event(BUTTON_PRESSED, MouseEvent(BUTTON_LEFT, BUTTON_LEFT), p, time(), window)
     input = generate_input!(ui, event)
     @test length(subscriptions) == 1
-    @test !is_subscribed(ui, cb)
-    @test is_subscribed(ui, cc)
+    @test !is_subscribed(ui, b, cb)
+    @test is_subscribed(ui, c, cc)
   end
 end;

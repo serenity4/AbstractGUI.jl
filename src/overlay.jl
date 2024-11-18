@@ -1,81 +1,101 @@
-"""
-UI overlay to handle events occurring on specific input areas.
-
-When using this overlay, the user is responsible of:
-- Calling `input_from_event(ui, event)` in the window callbacks that the user wishes to capture with the overlay.
-- Removing input areas when closing windows by performing `delete!(ui.areas, win)` to avoid holding on to input areas for nothing. This is particularly important if the user often creates and deletes windows, or if the user overlays a large number of areas which may take up considerable memory.
-
-"""
-mutable struct UIOverlay{W<:AbstractWindow}
-  const areas::Dictionary{W, Set{InputArea}}
-  "Pointer location, before updates from `POINTER_MOVED` events."
-  previous_pointer_location::Optional{Tuple{Float64, Float64}}
-  subscriptions::Dictionary{EventType, Dictionary{InputCallback, SubscriptionToken}}
-  function UIOverlay{W}(areas::Dictionary{W,Set{InputArea}}) where {W}
-    ui = new{W}(areas, nothing, Dictionary{EventType, Dictionary{InputCallback, Nothing}}())
-    update_overlays!(ui, areas)
-    ui
-  end
+function initialize_state!(ui::UIOverlay, area::InputArea, callback::InputCallback, options::OverlayOptions)
+  state = CallbackState(area, callback, options)
+  states = get!(Dictionary{InputCallback, CallbackState}, ui.state, area)
+  set!(states, callback, state)
 end
 
-UIOverlay{W}() where {W<:AbstractWindow} = UIOverlay{W}(Dictionary{W,Set{InputArea}}())
-UIOverlay(window::W, areas = []) where {W<:AbstractWindow} = UIOverlay{W}(dictionary([window => Set(areas)]))
-
-overlay!(ui::UIOverlay{W}, window::W, areas::AbstractVector) where {W} = overlay!(ui, window, Set(areas))
-overlay!(ui::UIOverlay{W}, window::W, areas::Set) where {W} = set!(ui.areas, window, areas)
-overlay!(ui::UIOverlay{W}, window::W, area::InputArea) where {W} = push!(get!(Set{InputArea}, ui.areas, window), area)
-unoverlay!(ui::UIOverlay{W}, window::W, area::InputArea) where {W} = delete!(get!(Set{InputArea}, ui.areas, window), area)
-
-update_overlays!(ui::UIOverlay{W}, window::W, areas::Vector{InputArea}) where {W} = update_overlays!(ui, window, Set(areas))
-function update_overlays!(ui::UIOverlay{W}, areas::Dictionary{W, Set{InputArea}}) where {W}
-  for (window, window_areas) in pairs(areas)
-    update_overlays!(ui, window, window_areas)
-  end
+function free_state!(ui::UIOverlay, area::InputArea, callback::InputCallback)
+  state = get(ui.state[area], callback, nothing)
+  isnothing(state) && return
+  unset!(ui.state[area], callback)
+  delete_subscriptions!(ui, state)
 end
 
-function update_overlays!(ui::UIOverlay{W}, window::W, areas::Set{InputArea}) where {W}
-  removed_areas = filter(!in(areas), collect(ui.areas[window]))
+function delete_subscriptions!(ui::UIOverlay, state::CallbackState)
   for subscription in ui.subscriptions
-    for area in removed_areas
-      for callback in area.callbacks
-        unset!(subscription, callback)
-      end
-    end
+    unset!(subscription, state)
   end
-  set!(ui.areas, window, areas)
 end
 
-function subscribe!(ui::UIOverlay, events::EventType, callback::InputCallback, token::SubscriptionToken)
+function overlay!(ui::UIOverlay{W}, window::W, area::InputArea, callback::InputCallback; options::OverlayOptions = OverlayOptions()) where {W}
+  callbacks = get!(Vector{InputCallback}, ui.callbacks, area)
+  !in(callback, callbacks) && push!(callbacks, callback)
+  initialize_state!(ui, area, callback, options)
+  areas = get!(Set{InputArea}, ui.areas, window)
+  push!(areas, area)
+  callback
+end
+
+function overlay!(f, ui::UIOverlay{W}, window::W, area::InputArea, args...; options::OverlayOptions = OverlayOptions()) where {W}
+  callback = InputCallback(f, args...)
+  overlay!(ui, window, area, callback; options)
+end
+
+function unoverlay!(ui::UIOverlay{W}, window::W, area::InputArea) where {W}
+  callbacks = get(ui.callbacks, area, nothing)
+  isnothing(callbacks) && return false
+  for callback in callbacks
+    unoverlay!(ui, window, area, callback)
+  end
+  true
+end
+
+function unoverlay!(ui::UIOverlay{W}, window::W, area::InputArea, callback::InputCallback) where {W}
+  areas = get(ui.areas, window, nothing)
+  isnothing(areas) && return false
+  callbacks = get(ui.callbacks, area, nothing)
+  isnothing(callbacks) && return false
+  i = findfirst(==(callback), callbacks)
+  isnothing(i) && return false
+  free_state!(ui, area, callback)
+  deleteat!(callbacks, i)
+  isempty(callbacks) || return true
+  delete!(ui.callbacks, area)
+  delete!(areas, area)
+  isempty(areas) || return true
+  delete!(ui.areas, window)
+  true
+end
+
+function subscribe!(ui::UIOverlay, events::EventType, state::CallbackState, token::SubscriptionToken)
   for event_type in enabled_flags(events)
     event_type === NO_EVENT && continue
-    event_subscriptions = get!(Dictionary{InputCallback, Nothing}, ui.subscriptions, event_type)
-    prev_token = get(event_subscriptions, callback, nothing)
+    event_subscriptions = get!(Dictionary{CallbackState, Nothing}, ui.subscriptions, event_type)
+    prev_token = get(event_subscriptions, state, nothing)
     if isnothing(prev_token)
-      insert!(event_subscriptions, callback, token)
+      insert!(event_subscriptions, state, token)
     else
-      event_subscriptions[callback] = prev_token | token
+      event_subscriptions[state] = prev_token | token
     end
   end
 end
 
-function unsubscribe!(ui::UIOverlay, events::EventType, callback::InputCallback, token::SubscriptionToken)
+function unsubscribe!(ui::UIOverlay, events::EventType, state::CallbackState, token::SubscriptionToken)
   for event_type in enabled_flags(events)
     event_type === NO_EVENT && continue
     event_subscriptions = get!(Dictionary{InputCallback, Nothing}, ui.subscriptions, event_type)
-    prev_token = get(event_subscriptions, callback, nothing)
+    prev_token = get(event_subscriptions, state, nothing)
     isnothing(prev_token) && continue
     new_token = prev_token & ~token
     if iszero(new_token)
-      delete!(event_subscriptions, callback)
+      delete!(event_subscriptions, state)
     else
-      event_subscriptions[callback] = new_token
+      event_subscriptions[state] = new_token
     end
   end
 end
 
-function is_subscribed(ui::UIOverlay, callback::InputCallback)
+function is_subscribed(ui::UIOverlay, area::InputArea, callback::InputCallback)
+  states = get(ui.state, area, nothing)
+  isnothing(states) && return false
+  state = get(states, callback, nothing)
+  isnothing(state) && return false
+  is_subscribed(ui, state)
+end
+
+function is_subscribed(ui::UIOverlay, state::CallbackState)
   for subscription in ui.subscriptions
-    haskey(subscription, callback) && return true
+    haskey(subscription, state) && return true
   end
   false
 end
@@ -84,9 +104,9 @@ function notify_subscribers!(ui::UIOverlay{W}, input::Input{W}) where {W}
   input.kind === EVENT || return
   event_subscriptions = get(ui.subscriptions, input.type::EventType, nothing)
   isnothing(event_subscriptions) && return
-  for callback in keys(event_subscriptions)
-    has_seen_input(callback, input) && continue
-    notify!(callback, input)
+  for state in keys(event_subscriptions)
+    has_seen_input(state, input) && continue
+    notify!(state, input)
   end
 end
 
@@ -102,30 +122,16 @@ function consume!(ui::UIOverlay{W}, event::Event{W}) where {W}
 end
 
 function consume_next!(ui::UIOverlay{W}, event::Event{W}, target::Optional{InputArea}, targets::AbstractVector{InputArea}) where {W}
-  target_events = isnothing(target) ? nothing : impacting_events(target)
-  target_actions = isnothing(target) ? nothing : actions(target)
+  target_events = isnothing(target) ? nothing : impacting_events(target, ui)
+  target_actions = isnothing(target) ? nothing : actions(target, ui)
 
   input = nothing
 
-  if !isnothing(target) && is_impacted_by(target, event.type)
+  if !isnothing(target) && is_impacted_by(target, event.type, ui)
     input = Input{W}(EVENT, event.type, target, event, targets, ui)
     consume!(input)
     notify_subscribers!(ui, input)
   end
 
   !isnothing(input)
-end
-
-distance(src::Event, event::Event) = hypot((event.location .- src.location)...)
-
-function find_targets(ui::UIOverlay, event::Event)
-  targets = InputArea[]
-  areas = get(ui.areas, event.win, nothing)
-  isnothing(areas) && return targets
-  for area in areas
-    is_impacted_by(area, event) && push!(targets, area)
-  end
-  isempty(targets) && return targets
-  sort!(targets, by = x -> x.z, rev = true)
-  targets
 end
