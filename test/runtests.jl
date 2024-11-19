@@ -130,23 +130,45 @@ end
     callback = overlay!(add_input, ui, window, area, DRAG)
     p = Tuple(centroid(geom1))
     source = Event(BUTTON_PRESSED, MouseEvent(BUTTON_LEFT, BUTTON_NONE), p, time(), window)
+
+    # Click then move outside the area, before releasing.
     @test isnothing(generate_input!(ui, source))
     state = ui.state[area][callback]
     @test !isnothing(state.drag_state.source)
     event = Event(POINTER_MOVED, PointerState(BUTTON_LEFT, NO_MODIFIERS), p .+ 0.01, time(), window)
+    @test isnothing(generate_input!(ui, event))
+    event = Event(POINTER_MOVED, PointerState(BUTTON_LEFT, NO_MODIFIERS), p .+ 0.4, time(), window)
+    input = generate_input!(ui, event)
+    @test input.area === area
+    @test input.type === DRAG
+    @test input.drag === (nothing, event)
+    @test input.source.event === source
+    event = Event(POINTER_MOVED, PointerState(BUTTON_LEFT, NO_MODIFIERS), p .+ 0.7, time(), window)
+    input = generate_input!(ui, event)
+    @test input.type === DRAG
+    @test input.drag === (nothing, event)
+    @test input.source.event === source
+    event = Event(BUTTON_RELEASED, MouseEvent(BUTTON_LEFT, BUTTON_LEFT), p .+ 0.7, time(), window)
+    @test isnothing(generate_input!(ui, event))
+    event = Event(POINTER_MOVED, PointerState(BUTTON_NONE, NO_MODIFIERS), p .+ 0.71, time(), window)
+    @test isnothing(generate_input!(ui, event))
+    test_overlay_is_reset(ui)
+
+    # Click then move inside the area (with a custom drag threshold), before releasing.
+    unoverlay!(ui, window, area, callback)
+    overlay!(ui, window, area, callback; options = OverlayOptions(drag_threshold = 0.01))
+    @test isnothing(generate_input!(ui, source))
+    event = Event(POINTER_MOVED, PointerState(BUTTON_LEFT, NO_MODIFIERS), p .+ 0.001, time(), window)
+    @test isnothing(generate_input!(ui, event))
+    event = Event(POINTER_MOVED, PointerState(BUTTON_LEFT, NO_MODIFIERS), p .+ 0.02, time(), window)
     input = generate_input!(ui, event)
     @test input.area === area
     @test input.type === DRAG
     @test input.drag === (area, event)
     @test input.source.event === source
-    event = Event(POINTER_MOVED, PointerState(BUTTON_LEFT, NO_MODIFIERS), p .+ 0.4, time(), window)
-    input = generate_input!(ui, event)
-    @test input.type === DRAG
-    @test input.drag === (nothing, event)
-    @test input.source.event === source
-    event = Event(BUTTON_RELEASED, MouseEvent(BUTTON_LEFT, BUTTON_LEFT), p .+ 0.01, time(), window)
+    event = Event(BUTTON_RELEASED, MouseEvent(BUTTON_LEFT, BUTTON_LEFT), p .+ 0.02, time(), window)
     @test isnothing(generate_input!(ui, event))
-    event = Event(POINTER_MOVED, PointerState(BUTTON_NONE, NO_MODIFIERS), p .+ 0.02, time(), window)
+    event = Event(POINTER_MOVED, PointerState(BUTTON_NONE, NO_MODIFIERS), p .+ 0.03, time(), window)
     @test isnothing(generate_input!(ui, event))
     test_overlay_is_reset(ui)
   end

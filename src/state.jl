@@ -4,7 +4,20 @@ function reset!(state::CallbackState)
   reset!(state.pointer_state)
 end
 
-distance(src::Event, event::Event) = hypot((event.location .- src.location)...)
+function reset_and_unsubscribe!(ui::UIOverlay, cstate::CallbackState, state::ClickState)
+  reset!(state)
+  unsubscribe!(ui, BUTTON_PRESSED, cstate, state.token)
+end
+
+function reset_and_unsubscribe!(ui::UIOverlay, cstate::CallbackState, state::DragState)
+  reset!(state)
+  unsubscribe!(ui, BUTTON_RELEASED | POINTER_MOVED, cstate, state.token)
+end
+
+function reset_and_unsubscribe!(ui::UIOverlay, cstate::CallbackState, state::PointerState)
+  reset!(state)
+  unsubscribe!(ui, POINTER_MOVED, cstate, state.token)
+end
 
 function notify(ui::UIOverlay, callback::InputCallback, input::Input)
   isnothing(input.area) && return false
@@ -36,10 +49,7 @@ notify_pointer_state(callback::InputCallback) = in(POINTER_ENTERED, callback.eve
 function notify_multiclick_clicked!(cstate::CallbackState, input::Input{W}) where {W}
   (; area, options, callback) = cstate
   state = cstate.click_state
-  if input.area !== area
-    reset!(state)
-    unsubscribe!(input.ui, BUTTON_PRESSED, cstate, state.token)
-  end
+  input.area !== area && reset_and_unsubscribe!(input.ui, cstate, state)
 
   (; event) = input
   last_click = state.last_click::Optional{Input{W}}
@@ -60,10 +70,7 @@ function notify_multiclick_clicked!(cstate::CallbackState, input::Input{W}) wher
 
   n = state.click_count
 
-  if state.click_count == max_click_count(callback)
-    reset!(state)
-    unsubscribe!(input.ui, BUTTON_PRESSED, cstate, state.token)
-  end
+  state.click_count == max_click_count(callback) && reset_and_unsubscribe!(input.ui, cstate, state)
 
   if in(DOUBLE_CLICK, callback.actions) && n == 2
     input = Input{W}(ACTION, DOUBLE_CLICK, input.area, (last_click.event, input.event), input, input.targets, input.ui)
@@ -78,19 +85,24 @@ end
 max_click_count(callback::InputCallback) = in(TRIPLE_CLICK, callback.actions) ? 3 : 2
 
 function notify_drag_clicked!(cstate::CallbackState, input::Input)
+  (; area) = cstate
   state = cstate.drag_state
-  reset!(state)
+  if input.area !== area
+    reset_and_unsubscribe!(input.ui, cstate, state)
+    return false
+  end
+  state.dragged = false
   state.source = input
   subscribe!(input.ui, BUTTON_RELEASED | POINTER_MOVED, cstate, state.token)
+  true
 end
 
 function notify_drag_released!(cstate::CallbackState, input::Input)
   (; area, callback) = cstate
   state = cstate.drag_state
-  unsubscribe!(input.ui, BUTTON_RELEASED | POINTER_MOVED, cstate, state.token)
-
-  !state.dragged && return false
-  reset!(state)
+  was_dragged = state.dragged
+  reset_and_unsubscribe!(input.ui, cstate, state)
+  was_dragged || return false
   in(DROP, callback.actions) || return false
   input = Input{W}(ACTION, DROP, area, (drag, event), input, input.targets, ui)
   state.drop_target = input
@@ -98,10 +110,13 @@ function notify_drag_released!(cstate::CallbackState, input::Input)
   true
 end
 
-function notify_drag_moved!(state::CallbackState, input::Input{W}) where {W}
-  (; options, area, callback) = state
-  state = state.drag_state
-  isnothing(state.source) && return false
+function notify_drag_moved!(cstate::CallbackState, input::Input{W}) where {W}
+  (; options, area, callback) = cstate
+  state = cstate.drag_state
+  if isnothing(state.source) || !in(BUTTON_LEFT, input.event.pointer_state.state)
+    reset_and_unsubscribe!(input.ui, cstate, state)
+    return false
+  end
   if !state.dragged
     source = state.source::Input{W}
     state.dragged = distance(source.event, input.event) > options.drag_threshold
@@ -114,6 +129,8 @@ function notify_drag_moved!(state::CallbackState, input::Input{W}) where {W}
   true
 end
 
+distance(src::Event, event::Event) = hypot((event.location .- src.location)...)
+
 function notify_pointer_moved!(cstate::CallbackState, input::Input{W}) where {W}
   (; area) = cstate
   state = cstate.pointer_state
@@ -121,14 +138,11 @@ function notify_pointer_moved!(cstate::CallbackState, input::Input{W}) where {W}
   (; event) = input
 
   if input.area !== area
-    state.on_area = false
-    if was_on_area
-      unsubscribe!(input.ui, POINTER_MOVED, cstate, state.token)
-      input = Input{W}(EVENT, POINTER_EXITED, area, (@set event.type = POINTER_EXITED), input, InputArea[], input.ui)
-      consume!(input)
-      return true
-    end
-    return false
+    !was_on_area && return false
+    reset_and_unsubscribe!(input.ui, cstate, state)
+    input = Input{W}(EVENT, POINTER_EXITED, area, (@set event.type = POINTER_EXITED), input, InputArea[], input.ui)
+    consume!(input)
+    return true
   end
 
   state.on_area = true

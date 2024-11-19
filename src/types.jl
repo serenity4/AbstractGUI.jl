@@ -63,6 +63,19 @@ area_index(targets, area::Nothing) = -1
   TOKEN_POINTER_STATE = 0x04
 end
 
+mutable struct ClickState
+  last_click::Optional{Input}
+  click_count::Int64
+  const token::SubscriptionToken
+end
+
+ClickState() = ClickState(nothing, 0, TOKEN_CLICK_STATE)
+
+function reset!(state::ClickState)
+  state.last_click = nothing
+  state.click_count = 0
+end
+
 mutable struct DragState
   source::Optional{Input}
   dragged::Bool
@@ -75,19 +88,6 @@ DragState() = DragState(nothing, false, nothing, TOKEN_DRAG_STATE)
 function reset!(state::DragState)
   state.source = nothing
   state.dragged = false
-end
-
-mutable struct ClickState
-  last_click::Optional{Input}
-  click_count::Int64
-  const token::SubscriptionToken
-end
-
-ClickState() = ClickState(nothing, 0, TOKEN_CLICK_STATE)
-
-function reset!(state::ClickState)
-  state.last_click = nothing
-  state.click_count = 0
 end
 
 mutable struct PointerState
@@ -105,7 +105,7 @@ Base.@kwdef struct OverlayOptions
   "Maximum time elapsed between two clicks to consider them as a double click action."
   double_click_period::Float64 = 0.4
   "Minimum distance required to initiate a drag action."
-  drag_threshold::Float64 = 0.01
+  drag_threshold::Float64 = 0.2
 end
 
 struct CallbackState
