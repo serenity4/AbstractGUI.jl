@@ -124,7 +124,7 @@ UI overlay to handle events occurring on specific input areas.
 
 When using this overlay, the user is responsible of:
 - Calling `input_from_event(ui, event)` in the window callbacks that the user wishes to capture with the overlay.
-- Removing input areas when closing windows by performing `delete!(ui.areas, win)` to avoid holding on to input areas for nothing. This is particularly important if the user often creates and deletes windows, or if the user overlays a large number of areas which may take up considerable memory.
+- Removing input areas when closing windows by performing `delete!(ui.areas, window)` to avoid holding on to input areas for nothing. This is particularly important if the user often creates and deletes windows, or if the user overlays a large number of areas which may take up considerable memory.
 
 """
 mutable struct UIOverlay{W<:AbstractWindow}

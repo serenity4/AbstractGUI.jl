@@ -21,7 +21,7 @@ is_impacted_by(area::InputArea, event::Event, ui::UIOverlay) = is_impacted_by(ar
 
 function find_targets(ui::UIOverlay, event::Event)
   targets = InputArea[]
-  areas = get(ui.areas, event.win, nothing)
+  areas = get(ui.areas, event.window, nothing)
   isnothing(areas) && return targets
   for area in areas
     is_impacted_by(area, event, ui) && push!(targets, area)
