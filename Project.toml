@@ -10,6 +10,9 @@ Dictionaries = "85a47980-9c8c-11e8-2b9f-f7ca1fa99fb4"
 GeometryExperiments = "1147bd75-18e1-436d-adda-d58e854f897d"
 WindowAbstractions = "e18202ca-4a7d-4de8-b056-fa6bbd7de157"
 
+[sources]
+GeometryExperiments = {url = "https://github.com/serenity4/GeometryExperiments.jl"}
+
 [compat]
 Accessors = "0.1.37"
 BitMasks = "0.1"
