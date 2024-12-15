@@ -121,10 +121,8 @@ end
 function consume!(ui::UIOverlay{W}, event::Event{W}) where {W}
   targets = find_targets(ui, event)
   target = !isempty(targets) ? targets[1] : nothing
-  if !consume_next!(ui, event, target, targets)
-    input = Input{W}(EVENT, event.type, target, event, targets, ui)
-    notify_subscribers!(ui, input)
-  end
+  input = @something consume_next!(ui, event, target, targets) Input{W}(EVENT, event.type, target, event, targets, ui)
+  notify_subscribers!(ui, input)
   event.type === POINTER_MOVED && (ui.previous_pointer_location = event.location)
   nothing
 end
@@ -138,8 +136,7 @@ function consume_next!(ui::UIOverlay{W}, event::Event{W}, target::Optional{Input
   if !isnothing(target) && is_impacted_by(target, event.type, ui)
     input = Input{W}(EVENT, event.type, target, event, targets, ui)
     consume!(input)
-    notify_subscribers!(ui, input)
   end
 
-  !isnothing(input)
+  input
 end

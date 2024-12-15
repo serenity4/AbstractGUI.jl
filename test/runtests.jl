@@ -195,6 +195,45 @@ end
     overlay!(input -> (add_input(input) && propagate!((x -> @test !x), input, [])), ui, window, top_2, POINTER_MOVED)
     @test (x -> x.area).(generate_inputs!(ui, event)) == [top_2]
     test_overlay_is_reset(ui)
+
+    # Allow cascading propagations.
+    ui = UIOverlay{FakeWindow}()
+    bottom = InputArea(geom1, 1.0, in(geom1))
+    middle = InputArea(geom1, 2.0, in(geom1))
+    top = InputArea(geom1, 3.0, in(geom1))
+    outside = InputArea(geom3, 2.6, in(geom3))
+    overlay!(add_input, ui, window, bottom, BUTTON_PRESSED, DOUBLE_CLICK)
+    overlay!(input -> add_input(input) && propagate!(input, bottom), ui, window, middle, BUTTON_PRESSED)
+    propagated_all_the_way = Ref(false)
+    overlay!(ui, window, top, BUTTON_PRESSED) do input
+      add_input(input)
+      propagate!(input, outside) do propagated
+        propagated && return
+        propagate!(input) do propagated
+          propagated_all_the_way[] = propagated
+        end
+      end
+    end
+    p = Tuple(centroid(geom1))
+    event = Event(BUTTON_PRESSED, MouseEvent(BUTTON_LEFT, BUTTON_NONE), p, time(), window)
+    inputs = generate_inputs!(ui, event)
+    @test length(inputs) == 3
+    @test inputs[1].type === BUTTON_PRESSED
+    @test inputs[1].area === top
+    @test inputs[2].type === BUTTON_PRESSED
+    @test inputs[2].area === middle
+    @test inputs[3].type === BUTTON_PRESSED
+    @test inputs[3].area === bottom
+    @test propagated_all_the_way[]
+
+    inputs = generate_inputs!(ui, @set event.time += 0.0001)
+    @test length(inputs) == 3
+    @test inputs[1].type === BUTTON_PRESSED
+    @test inputs[1].area === top
+    @test inputs[2].type === BUTTON_PRESSED
+    @test inputs[2].area === middle
+    @test inputs[3].type === DOUBLE_CLICK
+    @test inputs[3].area === bottom
   end
 
   @testset "Generation of `POINTER_ENTERED`/`POINTER_EXITED` events" begin
@@ -261,6 +300,32 @@ end
     event = Event(BUTTON_RELEASED, MouseEvent(BUTTON_LEFT, BUTTON_LEFT), p, time(), window)
     input = generate_input!(ui, event)
     @test input.type === BUTTON_RELEASED
+    test_overlay_is_reset(ui)
+
+    ui = UIOverlay{FakeWindow}()
+    a = InputArea(geom1, 3.0, in(geom1))
+    b = InputArea(geom1, 2.0, in(geom1))
+    p = Tuple(centroid(geom1))
+    targets = [b]
+    options = OverlayOptions()
+    overlay!(input -> add_input(input) && propagate!(input, targets), ui, window, a, BUTTON_PRESSED; options)
+    overlay!(add_input, ui, window, b, DOUBLE_CLICK; options)
+    event = Event(BUTTON_PRESSED, MouseEvent(BUTTON_LEFT, BUTTON_NONE), p, time(), window)
+    input = generate_input!(ui, event)
+    @test input.type === BUTTON_PRESSED
+    @test input.area === a
+    event = Event(BUTTON_RELEASED, MouseEvent(BUTTON_LEFT, BUTTON_LEFT), p, time(), window)
+    input = generate_input!(ui, event)
+    @test isnothing(input)
+    event = Event(BUTTON_PRESSED, MouseEvent(BUTTON_LEFT, BUTTON_NONE), p, event.time + 0.5options.double_click_period, window)
+    inputs = generate_inputs!(ui, event)
+    @test inputs[1].type === BUTTON_PRESSED
+    @test inputs[1].area === a
+    @test inputs[2].type === DOUBLE_CLICK
+    @test inputs[2].area === b
+    event = Event(BUTTON_RELEASED, MouseEvent(BUTTON_LEFT, BUTTON_LEFT), p, time(), window)
+    input = generate_input!(ui, event)
+    @test isnothing(input)
     test_overlay_is_reset(ui)
   end
 

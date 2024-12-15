@@ -26,10 +26,22 @@ function consume!(input::Input)
   for callback in callbacks
     called |= callback(input)
   end
-  propagated = (input.propagate || !called) && propagate_input!(input, input.propagate_to)
-  for callback in input.propagation_callbacks
-    callback(propagated)
+  !called && return propagate_input!(input)
+  while input.propagate
+    propagated = propagate_input!(input)
+    callbacks = copy(input.propagation_callbacks)
+    reset_propagation_state!(input)
+    for callback in callbacks
+      callback(propagated)
+    end
+    yield()
   end
+end
+
+function reset_propagation_state!(input::Input)
+  empty!(input.propagation_callbacks)
+  input.propagate = false
+  input.propagate_to = nothing
 end
 
 propagate!(input::Input, to = nothing) = propagate!(nothing, input, to)
@@ -46,7 +58,8 @@ function propagate!(f, input::Input, to = nothing)
   nothing
 end
 
-function propagate_input!(input::Input, to)
+function propagate_input!(input::Input)
+  to = input.propagate_to
   input.index == -1 && return false
   target = next_target(input, to)
   isnothing(target) && return false
@@ -55,7 +68,7 @@ function propagate_input!(input::Input, to)
     isnothing(input.seen_by) && (input.seen_by = Int64[])
     push!(input.seen_by, target)
   end
-  consume_next!(input.ui, event(input), input.targets[target], @view input.targets[(target + 1):end])
+  consume_next!(input.ui, event(input), input.targets[target], @view input.targets[target:end])
   true
 end
 
