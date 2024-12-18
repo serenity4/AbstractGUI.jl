@@ -257,105 +257,107 @@ end
     test_overlay_is_reset(ui)
   end
 
-  @testset "Generation of `DOUBLE_CLICK` actions" begin
-    ui = UIOverlay{FakeWindow}()
-    area = InputArea(geom1, 1.0, in(geom1))
-    overlay!(add_input, ui, window, area, BUTTON_EVENT, DOUBLE_CLICK)
-    p = Tuple(centroid(geom1))
-    event = Event(BUTTON_PRESSED, MouseEvent(BUTTON_LEFT, BUTTON_NONE), p, time(), window)
-    input = generate_input!(ui, event)
-    @test input.type === BUTTON_PRESSED
-    event = Event(BUTTON_RELEASED, MouseEvent(BUTTON_LEFT, BUTTON_LEFT), p, time(), window)
-    input = generate_input!(ui, event)
-    @test input.type === BUTTON_RELEASED
-    event = Event(BUTTON_PRESSED, MouseEvent(BUTTON_LEFT, BUTTON_NONE), p, event.time + 0.1, window)
-    input = generate_input!(ui, event)
-    @test input.type === DOUBLE_CLICK
-    event = Event(BUTTON_RELEASED, MouseEvent(BUTTON_LEFT, BUTTON_LEFT), p, time(), window)
-    input = generate_input!(ui, event)
-    @test input.type === BUTTON_RELEASED
-    @test input.area === area
-    test_overlay_is_reset(ui)
+  @testset "`DOUBLE_CLICK` actions" begin
+    @testset "Generation of `DOUBLE_CLICK` actions" begin
+      ui = UIOverlay{FakeWindow}()
+      area = InputArea(geom1, 1.0, in(geom1))
+      overlay!(add_input, ui, window, area, BUTTON_EVENT, DOUBLE_CLICK)
+      p = Tuple(centroid(geom1))
+      event = Event(BUTTON_PRESSED, MouseEvent(BUTTON_LEFT, BUTTON_NONE), p, time(), window)
+      input = generate_input!(ui, event)
+      @test input.type === BUTTON_PRESSED
+      event = Event(BUTTON_RELEASED, MouseEvent(BUTTON_LEFT, BUTTON_LEFT), p, time(), window)
+      input = generate_input!(ui, event)
+      @test input.type === BUTTON_RELEASED
+      event = Event(BUTTON_PRESSED, MouseEvent(BUTTON_LEFT, BUTTON_NONE), p, event.time + 0.1, window)
+      input = generate_input!(ui, event)
+      @test input.type === DOUBLE_CLICK
+      event = Event(BUTTON_RELEASED, MouseEvent(BUTTON_LEFT, BUTTON_LEFT), p, time(), window)
+      input = generate_input!(ui, event)
+      @test input.type === BUTTON_RELEASED
+      @test input.area === area
+      test_overlay_is_reset(ui)
 
-    ui = UIOverlay{FakeWindow}()
-    options = OverlayOptions()
-    overlay!(add_input, ui, window, area, BUTTON_RELEASED; options)
-    overlay!(add_input, ui, window, area, BUTTON_PRESSED, DOUBLE_CLICK; options)
-    event = Event(BUTTON_PRESSED, MouseEvent(BUTTON_LEFT, BUTTON_NONE), p, time(), window)
-    input = generate_input!(ui, event)
-    @test input.type === BUTTON_PRESSED
-    event = Event(BUTTON_RELEASED, MouseEvent(BUTTON_LEFT, BUTTON_LEFT), p, time(), window)
-    input = generate_input!(ui, event)
-    @test input.type === BUTTON_RELEASED
-    event = Event(BUTTON_PRESSED, MouseEvent(BUTTON_LEFT, BUTTON_NONE), p, event.time + 2options.double_click_period, window)
-    input = generate_input!(ui, event)
-    @test input.type === BUTTON_PRESSED
-    event = Event(BUTTON_RELEASED, MouseEvent(BUTTON_LEFT, BUTTON_LEFT), p, time(), window)
-    input = generate_input!(ui, event)
-    @test input.type === BUTTON_RELEASED
-    event = Event(BUTTON_PRESSED, MouseEvent(BUTTON_LEFT, BUTTON_NONE), p, event.time + 0.1, window)
-    input = generate_input!(ui, event)
-    @test input.type === DOUBLE_CLICK
-    @test isa(input.double_click, Tuple)
-    event = Event(BUTTON_RELEASED, MouseEvent(BUTTON_LEFT, BUTTON_LEFT), p, time(), window)
-    input = generate_input!(ui, event)
-    @test input.type === BUTTON_RELEASED
-    test_overlay_is_reset(ui)
+      ui = UIOverlay{FakeWindow}()
+      options = OverlayOptions()
+      overlay!(add_input, ui, window, area, BUTTON_RELEASED; options)
+      overlay!(add_input, ui, window, area, BUTTON_PRESSED, DOUBLE_CLICK; options)
+      event = Event(BUTTON_PRESSED, MouseEvent(BUTTON_LEFT, BUTTON_NONE), p, time(), window)
+      input = generate_input!(ui, event)
+      @test input.type === BUTTON_PRESSED
+      event = Event(BUTTON_RELEASED, MouseEvent(BUTTON_LEFT, BUTTON_LEFT), p, time(), window)
+      input = generate_input!(ui, event)
+      @test input.type === BUTTON_RELEASED
+      event = Event(BUTTON_PRESSED, MouseEvent(BUTTON_LEFT, BUTTON_NONE), p, event.time + 2options.double_click_period, window)
+      input = generate_input!(ui, event)
+      @test input.type === BUTTON_PRESSED
+      event = Event(BUTTON_RELEASED, MouseEvent(BUTTON_LEFT, BUTTON_LEFT), p, time(), window)
+      input = generate_input!(ui, event)
+      @test input.type === BUTTON_RELEASED
+      event = Event(BUTTON_PRESSED, MouseEvent(BUTTON_LEFT, BUTTON_NONE), p, event.time + 0.1, window)
+      input = generate_input!(ui, event)
+      @test input.type === DOUBLE_CLICK
+      @test isa(input.double_click, Tuple)
+      event = Event(BUTTON_RELEASED, MouseEvent(BUTTON_LEFT, BUTTON_LEFT), p, time(), window)
+      input = generate_input!(ui, event)
+      @test input.type === BUTTON_RELEASED
+      test_overlay_is_reset(ui)
 
-    ui = UIOverlay{FakeWindow}()
-    a = InputArea(geom1, 3.0, in(geom1))
-    b = InputArea(geom1, 2.0, in(geom1))
-    p = Tuple(centroid(geom1))
-    targets = [b]
-    options = OverlayOptions()
-    overlay!(input -> add_input(input) && propagate!(input, targets), ui, window, a, BUTTON_PRESSED; options)
-    overlay!(add_input, ui, window, b, DOUBLE_CLICK; options)
-    event = Event(BUTTON_PRESSED, MouseEvent(BUTTON_LEFT, BUTTON_NONE), p, time(), window)
-    input = generate_input!(ui, event)
-    @test input.type === BUTTON_PRESSED
-    @test input.area === a
-    event = Event(BUTTON_RELEASED, MouseEvent(BUTTON_LEFT, BUTTON_LEFT), p, time(), window)
-    input = generate_input!(ui, event)
-    @test isnothing(input)
-    event = Event(BUTTON_PRESSED, MouseEvent(BUTTON_LEFT, BUTTON_NONE), p, event.time + 0.5options.double_click_period, window)
-    inputs = generate_inputs!(ui, event)
-    @test inputs[1].type === BUTTON_PRESSED
-    @test inputs[1].area === a
-    @test inputs[2].type === DOUBLE_CLICK
-    @test inputs[2].area === b
-    event = Event(BUTTON_RELEASED, MouseEvent(BUTTON_LEFT, BUTTON_LEFT), p, time(), window)
-    input = generate_input!(ui, event)
-    @test isnothing(input)
-    test_overlay_is_reset(ui)
-  end
+      ui = UIOverlay{FakeWindow}()
+      a = InputArea(geom1, 3.0, in(geom1))
+      b = InputArea(geom1, 2.0, in(geom1))
+      p = Tuple(centroid(geom1))
+      targets = [b]
+      options = OverlayOptions()
+      overlay!(input -> add_input(input) && propagate!(input, targets), ui, window, a, BUTTON_PRESSED; options)
+      overlay!(add_input, ui, window, b, DOUBLE_CLICK; options)
+      event = Event(BUTTON_PRESSED, MouseEvent(BUTTON_LEFT, BUTTON_NONE), p, time(), window)
+      input = generate_input!(ui, event)
+      @test input.type === BUTTON_PRESSED
+      @test input.area === a
+      event = Event(BUTTON_RELEASED, MouseEvent(BUTTON_LEFT, BUTTON_LEFT), p, time(), window)
+      input = generate_input!(ui, event)
+      @test isnothing(input)
+      event = Event(BUTTON_PRESSED, MouseEvent(BUTTON_LEFT, BUTTON_NONE), p, event.time + 0.5options.double_click_period, window)
+      inputs = generate_inputs!(ui, event)
+      @test inputs[1].type === BUTTON_PRESSED
+      @test inputs[1].area === a
+      @test inputs[2].type === DOUBLE_CLICK
+      @test inputs[2].area === b
+      event = Event(BUTTON_RELEASED, MouseEvent(BUTTON_LEFT, BUTTON_LEFT), p, time(), window)
+      input = generate_input!(ui, event)
+      @test isnothing(input)
+      test_overlay_is_reset(ui)
+    end
 
-  @testset "Generation of `DOUBLE_CLICK` actions on secondary targets" begin
-    ui = UIOverlay{FakeWindow}()
-    bottom = InputArea(geom1, 1.0, in(geom1))
-    top = InputArea(geom1, 2.0, in(geom1))
-    overlay!(input -> add_input(input), ui, window, bottom, BUTTON_EVENT, DOUBLE_CLICK)
-    overlay!(input -> add_input(input) && propagate!(input), ui, window, top, DOUBLE_CLICK)
-    p = Tuple(centroid(geom1))
-    event = Event(BUTTON_PRESSED, MouseEvent(BUTTON_LEFT, BUTTON_NONE), p, time(), window)
-    input = generate_input!(ui, event)
-    @test input.type === BUTTON_PRESSED
-    @test input.area === bottom
-    release = Event(BUTTON_RELEASED, MouseEvent(BUTTON_LEFT, BUTTON_LEFT), p, time(), window)
-    input = generate_input!(ui, release)
-    @test input.type === BUTTON_RELEASED
-    @test input.area === bottom
-    event = Event(BUTTON_PRESSED, MouseEvent(BUTTON_LEFT, BUTTON_NONE), p, event.time + 0.1, window)
-    clicks = generate_inputs!(ui, event)
-    @test length(clicks) == 2
-    @test clicks[1].type === DOUBLE_CLICK
-    @test clicks[1].area === top
-    @test clicks[2].type === DOUBLE_CLICK
-    @test clicks[2].area === bottom
-    event = Event(BUTTON_RELEASED, MouseEvent(BUTTON_LEFT, BUTTON_LEFT), p, time(), window)
-    input = generate_input!(ui, event)
-    @test input.type === BUTTON_RELEASED
-    @test input.area === bottom
-    test_overlay_is_reset(ui)
+    @testset "Generation of `DOUBLE_CLICK` actions on secondary targets" begin
+      ui = UIOverlay{FakeWindow}()
+      bottom = InputArea(geom1, 1.0, in(geom1))
+      top = InputArea(geom1, 2.0, in(geom1))
+      overlay!(input -> add_input(input), ui, window, bottom, BUTTON_EVENT, DOUBLE_CLICK)
+      overlay!(input -> add_input(input) && propagate!(input), ui, window, top, DOUBLE_CLICK)
+      p = Tuple(centroid(geom1))
+      event = Event(BUTTON_PRESSED, MouseEvent(BUTTON_LEFT, BUTTON_NONE), p, time(), window)
+      input = generate_input!(ui, event)
+      @test input.type === BUTTON_PRESSED
+      @test input.area === bottom
+      release = Event(BUTTON_RELEASED, MouseEvent(BUTTON_LEFT, BUTTON_LEFT), p, time(), window)
+      input = generate_input!(ui, release)
+      @test input.type === BUTTON_RELEASED
+      @test input.area === bottom
+      event = Event(BUTTON_PRESSED, MouseEvent(BUTTON_LEFT, BUTTON_NONE), p, event.time + 0.1, window)
+      clicks = generate_inputs!(ui, event)
+      @test length(clicks) == 2
+      @test clicks[1].type === DOUBLE_CLICK
+      @test clicks[1].area === top
+      @test clicks[2].type === DOUBLE_CLICK
+      @test clicks[2].area === bottom
+      event = Event(BUTTON_RELEASED, MouseEvent(BUTTON_LEFT, BUTTON_LEFT), p, time(), window)
+      input = generate_input!(ui, event)
+      @test input.type === BUTTON_RELEASED
+      @test input.area === bottom
+      test_overlay_is_reset(ui)
+    end
   end
 
   @testset "Updating overlays" begin
