@@ -360,6 +360,58 @@ end
     end
   end
 
+  @testset "`HOVER` actions" begin
+    @testset "Generation of `HOVER_BEGIN`/`HOVER_END` actions" begin
+      ui = UIOverlay{FakeWindow}()
+      area = InputArea(geom1, 1.0, in(geom1))
+      options = OverlayOptions(; hover_delay = 0.0, hover_movement_tolerance = 0.01)
+      overlay!(add_input, ui, window, area, HOVER; options)
+      p = Tuple(centroid(geom1))
+      t = time()
+      event = Event(POINTER_MOVED, MouseEvent(BUTTON_LEFT, BUTTON_NONE), p, t, window)
+      input = generate_input!(ui, event)
+      @test input.type === HOVER_BEGIN
+      @test input.area === area
+      event = Event(POINTER_MOVED, MouseEvent(BUTTON_LEFT, BUTTON_NONE), p, t + 0.001, window)
+      input = generate_input!(ui, event)
+      @test isnothing(input)
+      event = Event(POINTER_MOVED, MouseEvent(BUTTON_LEFT, BUTTON_NONE), p .+ 0.001, t + 0.002, window)
+      input = generate_input!(ui, event)
+      @test isnothing(input)
+      event = Event(POINTER_MOVED, MouseEvent(BUTTON_LEFT, BUTTON_NONE), p .+ 0.05, t + 0.003, window)
+      inputs = generate_inputs!(ui, event)
+      @test inputs[1].type === HOVER_END
+      @test inputs[1].area === area
+      @test inputs[2].type === HOVER_BEGIN
+      @test inputs[2].area === area
+      event = Event(POINTER_MOVED, MouseEvent(BUTTON_LEFT, BUTTON_NONE), p .+ 50.0, t + 0.004, window)
+      input = generate_input!(ui, event)
+      @test input.type === HOVER_END
+      @test input.area === area
+      test_overlay_is_reset(ui)
+
+      options = OverlayOptions(; hover_delay = 0.1, hover_movement_tolerance = Inf)
+      overlay!(add_input, ui, window, area, HOVER)
+      event = Event(POINTER_MOVED, MouseEvent(BUTTON_LEFT, BUTTON_NONE), p, t, window)
+      state = only(ui.state[area]).hover_state
+      input = generate_input!(ui, event)
+      @test isnothing(input)
+      task = @async begin
+        global inputs
+        while isempty(inputs) yield() end
+        pop!(inputs)
+      end
+      input = fetch(task)
+      @test input.type === HOVER_BEGIN
+      @test input.area === area
+      event = Event(POINTER_MOVED, MouseEvent(BUTTON_LEFT, BUTTON_NONE), p .+ 50, t + 10.0, window)
+      input = generate_input!(ui, event)
+      @test input.type === HOVER_END
+      @test input.area === area
+      test_overlay_is_reset(ui)
+    end
+  end
+
   @testset "Updating overlays" begin
     ui = UIOverlay{FakeWindow}()
     a = InputArea(geom1, 1.0, in(geom1))

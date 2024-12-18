@@ -8,6 +8,7 @@ function impacting_events(callback::InputCallback)
   notify_drag_state(callback) && (events |= BUTTON_PRESSED | BUTTON_RELEASED | POINTER_MOVED)
   notify_multiclick_state(callback) && (events |= BUTTON_PRESSED)
   notify_pointer_state(callback) && (events |= POINTER_MOVED)
+  notify_hover_state(callback) && (events |= POINTER_EXITED | POINTER_MOVED)
   events
 end
 
@@ -15,7 +16,8 @@ function (callback::InputCallback)(input::Input{W}) where {W}
   if input.kind === EVENT && (
         in(input.type, BUTTON_EVENT) && notify_multiclick_state(callback) ||
         in(input.type, BUTTON_EVENT | POINTER_MOVED) && notify_drag_state(callback) ||
-        in(input.type, POINTER_MOVED) && notify_pointer_state(callback)
+        in(input.type, POINTER_MOVED) && notify_pointer_state(callback) ||
+        in(input.type, POINTER_MOVED | POINTER_EXITED) && notify_hover_state(callback)
       )
     executed = notify(input.ui, callback, input)
     executed && return false

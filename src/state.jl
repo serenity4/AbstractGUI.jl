@@ -19,21 +19,29 @@ function reset_and_unsubscribe!(ui::UIOverlay, cstate::CallbackState, state::Poi
   unsubscribe!(ui, POINTER_MOVED, cstate, state.token)
 end
 
+function reset_and_unsubscribe!(ui::UIOverlay, cstate::CallbackState, state::HoverState)
+  reset!(state)
+  unsubscribe!(ui, POINTER_EXITED, cstate, state.token)
+end
+
 function notify(ui::UIOverlay, callback::InputCallback, input::Input)
   isnothing(input.area) && return false
   notify!(ui.state[input.area][callback], input)
 end
 
-function notify!(state::CallbackState, input::Input)
+function notify!(state::CallbackState, input::Input, token = nothing)
   action_triggered = false
   if input.type === BUTTON_PRESSED && is_left_click(input)
-    notify_drag_state(state.callback) && notify_drag_clicked!(state, input)
-    notify_multiclick_state(state.callback) && (action_triggered |= notify_multiclick_clicked!(state, input))
+    notify_drag_state(state.callback, token) && notify_drag_clicked!(state, input)
+    notify_multiclick_state(state.callback, token) && (action_triggered |= notify_multiclick_clicked!(state, input))
   elseif input.type === BUTTON_RELEASED && is_left_click(input)
-    notify_drag_state(state.callback) && (action_triggered |= notify_drag_released!(state, input))
+    notify_drag_state(state.callback, token) && (action_triggered |= notify_drag_released!(state, input))
   elseif input.type === POINTER_MOVED
-    notify_drag_state(state.callback) && (action_triggered |= notify_drag_moved!(state, input))
-    notify_pointer_state(state.callback) && (action_triggered |= notify_pointer_moved!(state, input))
+    notify_drag_state(state.callback, token) && (action_triggered |= notify_drag_moved!(state, input))
+    notify_pointer_state(state.callback, token) && (action_triggered |= notify_pointer_moved!(state, state.pointer_state, input))
+    notify_hover_state(state.callback, token) && (action_triggered |= notify_pointer_moved!(state, state.hover_state, input))
+  elseif input.type === POINTER_EXITED
+    notify_hover_state(state.callback, token) && (action_triggered |= notify_pointer_exited!(state, input))
   end
   action_triggered
 end
@@ -41,10 +49,16 @@ end
 is_left_click(input::Input) = is_left_click(input.event)
 is_left_click(event::Event) = event.mouse_event.button == BUTTON_LEFT
 
-notify_drag_state(callback::InputCallback) = in(DRAG, callback.actions) || in(DROP, callback.actions)
-notify_multiclick_state(callback::InputCallback) = in(DOUBLE_CLICK, callback.actions) || in(TRIPLE_CLICK, callback.
+notify_drag_state(callback::InputCallback, token::Nothing = nothing) = in(DRAG, callback.actions) || in(DROP, callback.actions)
+notify_multiclick_state(callback::InputCallback, token::Nothing = nothing) = in(DOUBLE_CLICK, callback.actions) || in(TRIPLE_CLICK, callback.
 actions)
-notify_pointer_state(callback::InputCallback) = in(POINTER_ENTERED, callback.events) || in(POINTER_EXITED, callback.events)
+notify_pointer_state(callback::InputCallback, token::Nothing = nothing) = in(POINTER_ENTERED, callback.events) || in(POINTER_EXITED, callback.events) || notify_hover_state(callback)
+notify_hover_state(callback::InputCallback, token::Nothing = nothing) = in(HOVER_BEGIN, callback.actions) || in(HOVER_END, callback.actions)
+
+notify_drag_state(callback::InputCallback, token::SubscriptionToken) = notify_drag_state(callback) && token == TOKEN_DRAG_STATE
+notify_multiclick_state(callback::InputCallback, token::SubscriptionToken) = notify_multiclick_state(callback) && token == TOKEN_CLICK_STATE
+notify_pointer_state(callback::InputCallback, token::SubscriptionToken) = notify_pointer_state(callback) && token == TOKEN_POINTER_STATE
+notify_hover_state(callback::InputCallback, token::SubscriptionToken) = notify_hover_state(callback) && token == TOKEN_HOVER_STATE
 
 function notify_multiclick_clicked!(cstate::CallbackState, input::Input{W}) where {W}
   (; area, options, callback) = cstate
@@ -131,9 +145,8 @@ end
 
 distance(src::Event, event::Event) = hypot((event.location .- src.location)...)
 
-function notify_pointer_moved!(cstate::CallbackState, input::Input{W}) where {W}
+function notify_pointer_moved!(cstate::CallbackState, state::PointerState, input::Input{W}) where {W}
   (; area) = cstate
-  state = cstate.pointer_state
   was_on_area = state.on_area
   (; event) = input
 
@@ -151,4 +164,70 @@ function notify_pointer_moved!(cstate::CallbackState, input::Input{W}) where {W}
   input = Input{W}(EVENT, POINTER_ENTERED, area, (@set event.type = POINTER_ENTERED), input, InputArea[], input.ui)
   consume!(input)
   true
+end
+
+function notify_pointer_exited!(cstate::CallbackState, input::Input{W}) where {W}
+  (; area, callback) = cstate
+  state = cstate.hover_state
+  input.area == area || return false
+  lock(state)
+  reset_and_unsubscribe!(input.ui, cstate, state)
+  input = Input{W}(ACTION, HOVER_END, area, input.event, input, InputArea[], input.ui)
+  consume!(input)
+  unlock(state)
+  true
+end
+
+function notify_pointer_moved!(cstate::CallbackState, state::HoverState, input::Input{W}) where {W}
+  (; area, options, callback) = cstate
+  @assert isnothing(input.area) || input.area == area
+  movement_tolerance = options.hover_movement_tolerance
+  delay = options.hover_delay
+  source = state.source::Optional{Input{W}}
+  triggered = false
+
+  lock(state)
+
+  if state.in_progress
+    isinf(movement_tolerance) && return unlock(state) && false
+    movement_tolerance > distance(source.event, input.event) && return unlock(state) && false
+    reset_and_unsubscribe!(input.ui, cstate, state)
+    input = Input{W}(ACTION, HOVER_END, area, input.event, input, InputArea[], input.ui)
+    consume!(input)
+    triggered = true
+  end
+
+  elapsed = isnothing(source) ? 0.0 : input.event.time - source.event.time
+  isnothing(source) && (state.source = input)
+
+  if elapsed < delay
+    state.task = @async let delay = delay, cstate = cstate, state = state, source = state.source, input = input
+      state.in_progress && return
+      state.source === source || return
+      while (time() - source.event.time) * TIME_FACTOR[] < delay && islocked(state)
+        state.in_progress && return
+        state.source === source || return
+        isnothing(state.task) && return
+        sleep(0.001)
+      end
+      state.in_progress && return
+      state.source === source || return
+      state.in_progress = true
+      lock(state)
+      subscribe!(input.ui, POINTER_EXITED, cstate, state.token)
+      input = Input{W}(ACTION, HOVER_BEGIN, area, input.event, input, InputArea[], input.ui)
+      consume!(input)
+      unlock(state)
+    end
+    return unlock(state) && triggered
+  else
+    state.task = nothing
+  end
+
+  state.in_progress = true
+  subscribe!(input.ui, POINTER_EXITED, cstate, state.token)
+  input = Input{W}(ACTION, HOVER_BEGIN, area, input.event, input, InputArea[], input.ui)
+  consume!(input)
+  unlock(state)
+  triggered
 end

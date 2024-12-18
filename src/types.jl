@@ -1,16 +1,19 @@
 @bitmask exported = true ActionType::UInt32 begin
   NO_ACTION = 0
-  "A drag operation was detected."
+  "A drag action was detected."
   DRAG = 1
-  "A drop operation was detected on the window, and originating from that window."
+  "A drop action was detected on the window, and originating from that window."
   DROP = 2
-  "A hover operation was detected. To be implemented."
-  HOVER = 4
   "A double click occured on an area."
-  DOUBLE_CLICK = 8
+  DOUBLE_CLICK = 4
   "A triple click occured on an area."
-  TRIPLE_CLICK = 16
+  TRIPLE_CLICK = 8
+  "A hover action was started."
+  HOVER_BEGIN = 16
+  "A hover action was ended."
+  HOVER_END = 32
 
+  HOVER = HOVER_BEGIN | HOVER_END
   ALL_ACTIONS = DRAG | DROP | HOVER | DOUBLE_CLICK
 end
 
@@ -61,6 +64,7 @@ area_index(targets, area::Nothing) = -1
   TOKEN_DRAG_STATE = 0x01
   TOKEN_CLICK_STATE = 0x02
   TOKEN_POINTER_STATE = 0x04
+  TOKEN_HOVER_STATE = 0x08
 end
 
 mutable struct ClickState
@@ -101,11 +105,48 @@ function reset!(state::PointerState)
   state.on_area = false
 end
 
+mutable struct HoverState
+  in_progress::Bool
+  source::Optional{Input}
+  task::Optional{Task}
+  @atomic locked::Bool
+  const token::SubscriptionToken
+end
+
+HoverState() = HoverState(false, nothing, nothing, false, TOKEN_HOVER_STATE)
+
+function lock(state::HoverState)
+  while islocked(state) yield() end
+  @atomic state.locked = true
+end
+function unlock(state::HoverState)
+  @atomic state.locked = false
+  true
+end
+islocked(state::HoverState) = @atomic state.locked
+
+function reset!(state::HoverState)
+  state.in_progress = false
+  state.source = nothing
+end
+
 Base.@kwdef struct OverlayOptions
   "Maximum time elapsed between two clicks to consider them as a double click action."
   double_click_period::Float64 = 0.4
   "Minimum distance required to initiate a drag action."
   drag_threshold::Float64 = 0.2
+  """
+  Distance from which to break a hover action after movement.
+
+  By default, it is set to `Inf` to never break on movement so long as the pointer remains on the hovered area.
+  """
+  hover_movement_tolerance::Float64 = Inf
+  """
+  Delay (in seconds) before a hover action is started on a stationary area.
+
+  If non-zero, the delay will have an accuracy of the order of a millisecond.
+  """
+  hover_delay::Float64 = 0.5
 end
 
 struct CallbackState
@@ -115,9 +156,10 @@ struct CallbackState
   drag_state::DragState
   click_state::ClickState
   pointer_state::PointerState
+  hover_state::HoverState
 end
 
-CallbackState(area::InputArea, callback::InputCallback, options = OverlayOptions()) = CallbackState(area, callback, options, DragState(), ClickState(), PointerState())
+CallbackState(area::InputArea, callback::InputCallback, options = OverlayOptions()) = CallbackState(area, callback, options, DragState(), ClickState(), PointerState(), HoverState())
 
 """
 UI overlay to handle events occurring on specific input areas.

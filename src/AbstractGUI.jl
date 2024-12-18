@@ -8,6 +8,15 @@ using Accessors: @set
 
 const Optional{T} = Union{Nothing, T}
 
+const TIME_FACTOR = Ref(1.0)
+
+"""
+Set the time factor used to detect certain actions, such as delay hovers.
+
+To make time go faster, set a value greater than one.
+"""
+set_time_factor!(value) = TIME_FACTOR[] = value
+
 include("types.jl")
 include("area.jl")
 include("input.jl")

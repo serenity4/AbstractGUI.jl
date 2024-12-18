@@ -112,9 +112,9 @@ function notify_subscribers!(ui::UIOverlay{W}, input::Input{W}) where {W}
   input.kind === EVENT || return
   event_subscriptions = get(ui.subscriptions, input.type::EventType, nothing)
   isnothing(event_subscriptions) && return
-  for state in keys(event_subscriptions)
+  for (state, token) in pairs(event_subscriptions)
     has_seen_input(state, input) && continue
-    notify!(state, input)
+    notify!(state, input, token)
   end
 end
 
