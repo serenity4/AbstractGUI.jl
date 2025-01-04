@@ -11,9 +11,8 @@ is_impacted_by(callback::InputCallback, event::EventType) = is_impacted_by(callb
 
 function is_impacted_by(events, actions, event::EventType)
   any(in(actions), (DRAG, DROP)) && in(event, POINTER_MOVED | BUTTON_EVENT) && return true
-  in(HOVER, actions) && event == POINTER_MOVED && return true
   in(DOUBLE_CLICK, actions) && event == BUTTON_PRESSED && return true
-  event === POINTER_MOVED && (in(POINTER_ENTERED, events) || in(POINTER_EXITED, events) || in(HOVER, actions)) && return true
+  event === POINTER_MOVED && (in(POINTER_ENTERED, events) || in(POINTER_EXITED, events) || any(in(actions), (HOVER_BEGIN, HOVER_END))) && return true
   in(event, events)
 end
 
@@ -28,5 +27,4 @@ function find_targets(ui::UIOverlay, event::Event)
   end
   isempty(targets) && return targets
   sort!(targets, by = x -> x.z, rev = true)
-  targets
 end

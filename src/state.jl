@@ -29,8 +29,11 @@ function notify(ui::UIOverlay, callback::InputCallback, input::Input)
   notify!(ui.state[input.area][callback], input)
 end
 
+is_target(state::CallbackState, input::Input) = isnothing(input.target_state) || input.target_state::CallbackState === state
+
 function notify!(state::CallbackState, input::Input, token = nothing)
   action_triggered = false
+  !is_target(state, input) && return false
   if input.type === BUTTON_PRESSED && is_left_click(input)
     notify_drag_state(state.callback, token) && notify_drag_clicked!(state, input)
     notify_multiclick_state(state.callback, token) && (action_triggered |= notify_multiclick_clicked!(state, input))
@@ -148,21 +151,23 @@ distance(src::Event, event::Event) = hypot((event.location .- src.location)...)
 function notify_pointer_moved!(cstate::CallbackState, state::PointerState, input::Input{W}) where {W}
   (; area) = cstate
   was_on_area = state.on_area
-  (; event) = input
+  (; event, ui) = input
 
   if input.area !== area
     !was_on_area && return false
     reset_and_unsubscribe!(input.ui, cstate, state)
-    input = Input{W}(EVENT, POINTER_EXITED, area, (@set event.type = POINTER_EXITED), input, InputArea[], input.ui)
+    input = Input{W}(EVENT, POINTER_EXITED, area, (@set event.type = POINTER_EXITED), input, InputArea[], ui; target_state = cstate)
     consume!(input)
+    notify_subscribers!(ui, input)
     return true
   end
 
   state.on_area = true
   was_on_area && return false
-  subscribe!(input.ui, POINTER_MOVED, cstate, state.token)
-  input = Input{W}(EVENT, POINTER_ENTERED, area, (@set event.type = POINTER_ENTERED), input, InputArea[], input.ui)
+  subscribe!(ui, POINTER_MOVED, cstate, state.token)
+  input = Input{W}(EVENT, POINTER_ENTERED, area, (@set event.type = POINTER_ENTERED), input, InputArea[], ui; target_state = cstate)
   consume!(input)
+  notify_subscribers!(ui, input)
   true
 end
 
@@ -172,8 +177,10 @@ function notify_pointer_exited!(cstate::CallbackState, input::Input{W}) where {W
   input.area == area || return false
   lock(state)
   reset_and_unsubscribe!(input.ui, cstate, state)
-  input = Input{W}(ACTION, HOVER_END, area, input.event, input, InputArea[], input.ui)
-  consume!(input)
+  if in(HOVER_END, callback.actions)
+    input = Input{W}(ACTION, HOVER_END, area, input.event, input, InputArea[], input.ui)
+    consume!(input)
+  end
   unlock(state)
   true
 end
@@ -192,8 +199,10 @@ function notify_pointer_moved!(cstate::CallbackState, state::HoverState, input::
     isinf(movement_tolerance) && return unlock(state) && false
     movement_tolerance > distance(source.event, input.event) && return unlock(state) && false
     reset_and_unsubscribe!(input.ui, cstate, state)
-    input = Input{W}(ACTION, HOVER_END, area, input.event, input, InputArea[], input.ui)
-    consume!(input)
+    if in(HOVER_END, callback.actions)
+      input = Input{W}(ACTION, HOVER_END, area, input.event, input, InputArea[], input.ui)
+      consume!(input)
+    end
     triggered = true
   end
 
@@ -215,8 +224,10 @@ function notify_pointer_moved!(cstate::CallbackState, state::HoverState, input::
       state.in_progress = true
       lock(state)
       subscribe!(input.ui, POINTER_EXITED, cstate, state.token)
-      input = Input{W}(ACTION, HOVER_BEGIN, area, input.event, input, InputArea[], input.ui)
-      consume!(input)
+      if in(HOVER_BEGIN, callback.actions)
+        input = Input{W}(ACTION, HOVER_BEGIN, area, input.event, input, InputArea[], input.ui)
+        consume!(input)
+      end
       unlock(state)
     end
     return unlock(state) && triggered
@@ -226,8 +237,10 @@ function notify_pointer_moved!(cstate::CallbackState, state::HoverState, input::
 
   state.in_progress = true
   subscribe!(input.ui, POINTER_EXITED, cstate, state.token)
-  input = Input{W}(ACTION, HOVER_BEGIN, area, input.event, input, InputArea[], input.ui)
-  consume!(input)
+  if in(HOVER_BEGIN, callback.actions)
+    input = Input{W}(ACTION, HOVER_BEGIN, area, input.event, input, InputArea[], input.ui)
+    consume!(input)
+  end
   unlock(state)
   triggered
 end

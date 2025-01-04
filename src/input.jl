@@ -23,7 +23,9 @@ function consume!(input::Input)
   isnothing(input.area) && return
   callbacks = get(input.ui.callbacks, input.area, nothing)
   isnothing(callbacks) && return
+  states = input.ui.state[input.area]
   for callback in callbacks
+    is_target(states[callback], input) || continue
     called |= callback(input)
   end
   !called && return propagate_input!(input)

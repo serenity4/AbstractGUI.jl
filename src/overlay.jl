@@ -34,7 +34,7 @@ end
 function unoverlay!(ui::UIOverlay{W}, window::W, area::InputArea) where {W}
   callbacks = get(ui.callbacks, area, nothing)
   isnothing(callbacks) && return false
-  for callback in callbacks
+  for callback in copy(callbacks)
     unoverlay!(ui, window, area, callback)
   end
   true
@@ -68,20 +68,17 @@ end
 function subscribe!(ui::UIOverlay, events::EventType, state::CallbackState, token::SubscriptionToken)
   for event_type in enabled_flags(events)
     event_type === NO_EVENT && continue
-    event_subscriptions = get!(Dictionary{CallbackState, Nothing}, ui.subscriptions, event_type)
-    prev_token = get(event_subscriptions, state, nothing)
-    if isnothing(prev_token)
-      insert!(event_subscriptions, state, token)
-    else
-      event_subscriptions[state] = prev_token | token
-    end
+    event_subscriptions = get!(Dictionary{CallbackState, SubscriptionToken}, ui.subscriptions, event_type)
+    prev_token = get(event_subscriptions, state, SubscriptionToken())
+    set!(event_subscriptions, state, prev_token | token)
   end
 end
 
 function unsubscribe!(ui::UIOverlay, events::EventType, state::CallbackState, token::SubscriptionToken)
   for event_type in enabled_flags(events)
     event_type === NO_EVENT && continue
-    event_subscriptions = get!(Dictionary{InputCallback, Nothing}, ui.subscriptions, event_type)
+    event_subscriptions = get(ui.subscriptions, event_type, nothing)
+    isnothing(event_subscriptions) && continue
     prev_token = get(event_subscriptions, state, nothing)
     isnothing(prev_token) && continue
     new_token = prev_token & ~token
@@ -112,8 +109,19 @@ function notify_subscribers!(ui::UIOverlay{W}, input::Input{W}) where {W}
   input.kind === EVENT || return
   event_subscriptions = get(ui.subscriptions, input.type::EventType, nothing)
   isnothing(event_subscriptions) && return
+
+  # First, gather all subscribers.
+  subscribers = Pair{CallbackState, SubscriptionToken}[]
   for (state, token) in pairs(event_subscriptions)
     has_seen_input(state, input) && continue
+    push!(subscribers, state => token)
+  end
+
+  # Then, notify them.
+  # We do this separately from gathering to make sure we
+  # notify all subscribers attached to a given area,
+  # not just one callback state per area.
+  for (state, token) in subscribers
     notify!(state, input, token)
   end
 end

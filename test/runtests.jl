@@ -255,6 +255,25 @@ end
     @test input.type === POINTER_EXITED
     @test input.area === top
     test_overlay_is_reset(ui)
+
+    ui = UIOverlay{FakeWindow}()
+    bottom = InputArea(geom1, 2.0, in(geom1))
+    top = InputArea(geom1, 1.0, in(geom1))
+    overlay!(add_input, ui, window, bottom, POINTER_ENTERED)
+    overlay!(add_input, ui, window, top, POINTER_EXITED)
+    event = Event(POINTER_MOVED, PointerState(BUTTON_NONE, NO_MODIFIERS), Tuple(centroid(geom1)), time(), window)
+    input = generate_input!(ui, event)
+    @test input.type === POINTER_ENTERED
+    @test input.area === bottom
+    @test isempty(input.targets)
+    event = Event(POINTER_MOVED, PointerState(BUTTON_LEFT, NO_MODIFIERS), Tuple(centroid(geom1)) .+ 0.01, time(), window)
+    input = generate_input!(ui, event)
+    @test isnothing(input)
+    event = Event(POINTER_MOVED, PointerState(BUTTON_LEFT, NO_MODIFIERS), Tuple(centroid(geom1)) .+ 0.5, time(), window)
+    input = generate_input!(ui, event)
+    @test input.type === POINTER_EXITED
+    @test input.area === top
+    test_overlay_is_reset(ui)
   end
 
   @testset "`DOUBLE_CLICK` actions" begin
@@ -409,6 +428,68 @@ end
       @test input.type === HOVER_END
       @test input.area === area
       test_overlay_is_reset(ui)
+
+      @testset "Specifying `HOVER_BEGIN`/`HOVER_END` for separate callbacks" begin
+        ui = UIOverlay{FakeWindow}()
+        area = InputArea(geom1, 1.0, in(geom1))
+        options = OverlayOptions(; hover_delay = 0)
+        overlay!(add_input, ui, window, area, HOVER_BEGIN; options)
+        overlay!(add_input, ui, window, area, HOVER_END; options)
+        @test length(ui.state[area]) == 2
+        p = Tuple(centroid(geom1))
+        t = time()
+        event = Event(POINTER_MOVED, MouseEvent(BUTTON_LEFT, BUTTON_NONE), p, t, window)
+        input = generate_input!(ui, event)
+        @test input.type === HOVER_BEGIN
+        @test input.area === area
+        event = Event(POINTER_MOVED, MouseEvent(BUTTON_LEFT, BUTTON_NONE), p .+ 50.0, t + 0.001, window)
+        input = generate_input!(ui, event)
+        @test input.type === HOVER_END
+        @test input.area === area
+      end
+
+      @testset "Specifying `HOVER_BEGIN` without a `HOVER_END`" begin
+        ui = UIOverlay{FakeWindow}()
+        area = InputArea(geom1, 1.0, in(geom1))
+        options = OverlayOptions(; hover_delay = 0)
+        overlay!(add_input, ui, window, area, HOVER_BEGIN; options)
+        p = Tuple(centroid(geom1))
+        t = time()
+        event = Event(POINTER_MOVED, MouseEvent(BUTTON_LEFT, BUTTON_NONE), p, t, window)
+        input = generate_input!(ui, event)
+        @test input.type === HOVER_BEGIN
+        @test input.area === area
+        event = Event(POINTER_MOVED, MouseEvent(BUTTON_LEFT, BUTTON_NONE), p .+ 50.0, t + 0.001, window)
+        input = generate_input!(ui, event)
+        @test isnothing(input)
+        event = Event(POINTER_MOVED, MouseEvent(BUTTON_LEFT, BUTTON_NONE), p, t .+ 0.002, window)
+        input = generate_input!(ui, event)
+        @test input.type === HOVER_BEGIN
+        @test input.area === area
+      end
+
+      @testset "Specifying `HOVER_END` without a `HOVER_BEGIN`" begin
+        ui = UIOverlay{FakeWindow}()
+        area = InputArea(geom1, 1.0, in(geom1))
+        options = OverlayOptions(; hover_delay = 0)
+        overlay!(add_input, ui, window, area, HOVER_END; options)
+        p = Tuple(centroid(geom1))
+        t = time()
+        event = Event(POINTER_MOVED, MouseEvent(BUTTON_LEFT, BUTTON_NONE), p, t, window)
+        input = generate_input!(ui, event)
+        @test isnothing(input)
+        event = Event(POINTER_MOVED, MouseEvent(BUTTON_LEFT, BUTTON_NONE), p .+ 50.0, t + 0.001, window)
+        input = generate_input!(ui, event)
+        @test input.type === HOVER_END
+        @test input.area === area
+        event = Event(POINTER_MOVED, MouseEvent(BUTTON_LEFT, BUTTON_NONE), p, t .+ 0.002, window)
+        input = generate_input!(ui, event)
+        @test isnothing(input)
+        event = Event(POINTER_MOVED, MouseEvent(BUTTON_LEFT, BUTTON_NONE), p .+ 50.0, t + 0.003, window)
+        input = generate_input!(ui, event)
+        @test input.type === HOVER_END
+        @test input.area === area
+      end
     end
   end
 

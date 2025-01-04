@@ -50,11 +50,12 @@ mutable struct Input{W}
   propagate::Bool
   propagate_to::Optional{Vector{InputArea}}
   propagation_callbacks::Vector{Any}
+  const target_state::Optional{Any #= CallbackState =#}
   const ui::Any #= UIOverlay =#
 end
 
-Input{W}(kind, type, area, data, targets, ui) where {W} = Input{W}(kind, type, area, data, nothing, targets, ui)
-Input{W}(kind, type, area, data, source, targets, ui) where {W} = Input{W}(kind, type, area, data, source, targets, area_index(targets, area), nothing, false, nothing, [], ui)
+Input{W}(kind, type, area, data, targets, ui; target_state = nothing) where {W} = Input{W}(kind, type, area, data, nothing, targets, ui; target_state)
+Input{W}(kind, type, area, data, source, targets, ui; target_state = nothing) where {W} = Input{W}(kind, type, area, data, source, targets, area_index(targets, area), nothing, false, nothing, [], target_state, ui)
 
 area_index(targets, area::Integer) = area
 area_index(targets, area::InputArea) = something(findfirst(x -> x === area, targets), -1)
