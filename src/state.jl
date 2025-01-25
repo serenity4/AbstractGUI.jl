@@ -44,7 +44,10 @@ function notify!(state::CallbackState, input::Input, token = nothing)
     notify_pointer_state(state.callback, token) && (action_triggered |= notify_pointer_moved!(state, state.pointer_state, input))
     notify_hover_state(state.callback, token) && (action_triggered |= notify_pointer_moved!(state, state.hover_state, input))
   elseif input.type === POINTER_EXITED
-    notify_hover_state(state.callback, token) && (action_triggered |= notify_pointer_exited!(state, input))
+    notify_pointer_state(state.callback, token) && (action_triggered |= notify_pointer_exited!(state, state.pointer_state, input))
+    notify_hover_state(state.callback, token) && (action_triggered |= notify_pointer_exited!(state, state.hover_state, input))
+  elseif input.type === POINTER_ENTERED
+    notify_pointer_state(state.callback, token) && (action_triggered |= notify_pointer_entered!(state, state.pointer_state, input))
   end
   action_triggered
 end
@@ -148,6 +151,21 @@ end
 
 distance(src::Event, event::Event) = hypot((event.location .- src.location)...)
 
+function notify_pointer_entered!(cstate::CallbackState, state::PointerState, input::Input{W}) where {W}
+  (; area, callback) = cstate
+  input.area === area || return false
+  state.on_area = true
+  subscribe!(input.ui, POINTER_MOVED, cstate, state.token)
+  false
+end
+
+function notify_pointer_exited!(cstate::CallbackState, state::PointerState, input::Input{W}) where {W}
+  (; area, callback) = cstate
+  input.area === area || return false
+  reset_and_unsubscribe!(input.ui, cstate, state)
+  false
+end
+
 function notify_pointer_moved!(cstate::CallbackState, state::PointerState, input::Input{W}) where {W}
   (; area) = cstate
   was_on_area = state.on_area
@@ -155,23 +173,20 @@ function notify_pointer_moved!(cstate::CallbackState, state::PointerState, input
 
   if input.area !== area
     !was_on_area && return false
-    reset_and_unsubscribe!(input.ui, cstate, state)
     input = Input{W}(EVENT, POINTER_EXITED, area, (@set event.type = POINTER_EXITED), input, InputArea[], ui; target_state = cstate)
     consume!(input)
     notify_subscribers!(ui, input)
     return true
   end
 
-  state.on_area = true
   was_on_area && return false
-  subscribe!(ui, POINTER_MOVED, cstate, state.token)
   input = Input{W}(EVENT, POINTER_ENTERED, area, (@set event.type = POINTER_ENTERED), input, InputArea[], ui; target_state = cstate)
   consume!(input)
   notify_subscribers!(ui, input)
   true
 end
 
-function notify_pointer_exited!(cstate::CallbackState, input::Input{W}) where {W}
+function notify_pointer_exited!(cstate::CallbackState, state::HoverState, input::Input{W}) where {W}
   (; area, callback) = cstate
   state = cstate.hover_state
   input.area == area || return false

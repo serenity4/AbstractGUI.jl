@@ -274,6 +274,34 @@ end
     @test input.type === POINTER_EXITED
     @test input.area === top
     test_overlay_is_reset(ui)
+
+    # Don't generate more than one consecutive `POINTER_ENTERED`/`POINTER_EXITED` event.
+    ui = UIOverlay{FakeWindow}()
+    area = InputArea(geom1, 1.0, in(geom1))
+    overlay!(add_input, ui, window, area, POINTER_ENTERED | POINTER_EXITED)
+    event = Event(POINTER_ENTERED, PointerState(BUTTON_NONE, NO_MODIFIERS), Tuple(centroid(geom1)), time(), window)
+    input = generate_input!(ui, event)
+    @test input.type === POINTER_ENTERED
+    @test input.area === area
+    event = Event(POINTER_MOVED, PointerState(BUTTON_NONE, NO_MODIFIERS), Tuple(centroid(geom1)) .+ 0.01, time(), window)
+    input = generate_input!(ui, event)
+    @test isnothing(input)
+    event = Event(POINTER_MOVED, PointerState(BUTTON_LEFT, NO_MODIFIERS), Tuple(centroid(geom1)) .+ 0.5, time(), window)
+    input = generate_input!(ui, event)
+    @test input.type === POINTER_EXITED
+    @test input.area === area
+    event = Event(POINTER_MOVED, PointerState(BUTTON_LEFT, NO_MODIFIERS), Tuple(centroid(geom1)), time(), window)
+    input = generate_input!(ui, event)
+    @test input.type === POINTER_ENTERED
+    @test input.area === area
+    event = Event(POINTER_EXITED, PointerState(BUTTON_NONE, NO_MODIFIERS), Tuple(centroid(geom1)), time(), window)
+    input = generate_input!(ui, event)
+    @test input.type === POINTER_EXITED
+    @test input.area === area
+    event = Event(POINTER_MOVED, PointerState(BUTTON_LEFT, NO_MODIFIERS), Tuple(centroid(geom1)) .+ 0.5, time(), window)
+    input = generate_input!(ui, event)
+    @test isnothing(input)
+    test_overlay_is_reset(ui)
   end
 
   @testset "`DOUBLE_CLICK` actions" begin
