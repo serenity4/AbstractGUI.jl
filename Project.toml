@@ -1,7 +1,7 @@
 name = "AbstractGUI"
 uuid = "796b4d30-d51d-4664-90d1-7cd8560850fa"
-version = "0.3.11"
 authors = ["Cédric Belmant"]
+version = "0.3.11"
 
 [deps]
 Accessors = "7d9f7c33-5ae7-4f3b-8dc6-eff91059b697"
@@ -10,15 +10,15 @@ Dictionaries = "85a47980-9c8c-11e8-2b9f-f7ca1fa99fb4"
 GeometryExperiments = "1147bd75-18e1-436d-adda-d58e854f897d"
 WindowAbstractions = "e18202ca-4a7d-4de8-b056-fa6bbd7de157"
 
-[sources]
-GeometryExperiments = {url = "https://github.com/serenity4/GeometryExperiments.jl"}
+[sources.GeometryExperiments]
+url = "https://github.com/serenity4/GeometryExperiments.jl"
 
 [compat]
 Accessors = "0.1.37"
 BitMasks = "0.1"
 Dictionaries = "0.3, 0.4"
 GeometryExperiments = "0.4"
-WindowAbstractions = "0.8"
+WindowAbstractions = "0.8, 0.9"
 julia = "1.10"
 
 [extras]
